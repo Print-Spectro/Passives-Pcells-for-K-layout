@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description/>
+ <version/>
+ <category>pymacros</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>true</autorun>
+ <autorun-early>false</autorun-early>
+ <priority>0</priority>
+ <shortcut/>
+ <show-in-menu>false</show-in-menu>
+ <group-name/>
+ <menu-path/>
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name/>
+ <text>import pya
+import math
+
+"""
+This sample PCell implements a library called "MyLib" with a single PCell that
+draws a circle. It demonstrates the basic implementation techniques for a PCell 
+and how to use the "guiding shape" feature to implement a handle for the circle
+radius.
+
+NOTE: after changing the code, the macro needs to be rerun to install the new
+implementation. The macro is also set to "auto run" to install the PCell 
+when KLayout is run.
+"""
+
+class MIM_Capacitor(pya.PCellDeclarationHelper):
+  """
+  The PCell declaration for the circle
+  """
+
+  def __init__(self):
+
+    # Important: initialize the super class
+    super(MIM_Capacitor, self).__init__()
+
+    # declare the parameters
+    
+    #capacitor layers
+    self.param("lb", self.TypeLayer, "BondpadLayer")
+    self.param("ld", self.TypeLayer, "DielectricLayer")
+    self.param("lp", self.TypeLayer, "BottomPlateLayer")
+    
+    #capacitor types: series and shunt
+    self.param("lp", self.TypeLayer, "BottomPlateLayer")
+    
+    # Parameter for selecting capacitor mode
+    self.param("mode", self.TypeString, "Capacitor Mode", 
+                default="series", choices=(["Series", "series"],["Shunt","shunt"]))
+
+    #Parameters for the CPW capacitor
+    self.param("lx", self.TypeDouble, "Length X", default=10.0)
+    self.param("ly", self.TypeDouble, "Length Y", default=10.0)
+    self.param("gap", self.TypeDouble, "Gap", default=6.0)
+    self.param("e", self.TypeDouble, "Permittivity", default=7.0)
+
+
+  def display_text_impl(self):
+    # Provide a descriptive text for the cell
+    return "MIM_CAP(LX=" + str(self.lx) + ",LY=" + str(self.ly) + ")"
+  
+  def produce_impl(self):
+    dbu = self.layout.dbu
+    # This is the main part of the implementation: create the layout
+    # create the shape
+    self.cell.shapes(self.lb).insert(pya.Box(4/dbu,4/dbu,self.lx/dbu,self.ly/dbu))
+    self.cell.shapes(self.ld).insert(pya.Box(0,0,(self.lx+4)/dbu,(self.ly+4)/dbu))
+    self.cell.shapes(self.lp).insert(pya.Box(2/dbu,2/dbu,(self.lx+2)/dbu,(self.ly+2)/dbu))
+
+
+class MyLib(pya.Library):
+  """
+  The library where we will put the PCell into 
+  """
+
+  def __init__(self):
+  
+    # Set the description
+    self.description = "GaN_PDK_PASSIVES"
+    
+    # Create the PCell declarations
+    self.layout().register_pcell("MIM_Capacitor", MIM_Capacitor())
+    # That would be the place to put in more PCells ...
+    
+    # Register us with the name "MyLib".
+    # If a library with that name already existed, it will be replaced then.
+    self.register("GaN_Lib")
+
+
+# Instantiate and register the library
+MyLib()
+</text>
+</klayout-macro>
