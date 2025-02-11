@@ -17,7 +17,6 @@
  <dsl-interpreter-name/>
  <text>import pya
 import math
-import PCELL_MIM_CAP.lym
 """
 This sample PCell implements a library called "MyLib" with a single PCell that
 draws a circle. It demonstrates the basic implementation techniques for a PCell 
@@ -73,27 +72,18 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     self.cell.shapes(self.lp).insert(pya.Box(2/dbu,2/dbu,(self.lx+2)/dbu,(self.ly+2)/dbu))
 
 
-class MyLib(pya.Library):
-  """
-  The library where we will put the PCell into 
-  """
-
-  def __init__(self):
-  
-    # Set the description
-    self.description = "GaN_PDK_PASSIVES"
-    
-    # Create the PCell declarations
-    self.layout().register_pcell("MIM_Capacitor", MIM_Capacitor())
-    self.layout().register_pcell("CPW", CPW())
-    # That would be the place to put in more PCells ...
-    
-    # Register us with the name "MyLib".
-    # If a library with that name already existed, it will be replaced then.
-    self.register("GaN_Lib")
 
 
-# Instantiate and register the library
-MyLib()
+
+
+
+
+
+
+
+
+
+
+
 </text>
 </klayout-macro>
