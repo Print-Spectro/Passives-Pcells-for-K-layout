@@ -28,6 +28,47 @@ NOTE: after changing the code, the macro needs to be rerun to install the new
 implementation. The macro is also set to "auto run" to install the PCell 
 when KLayout is run.
 """
+def drawCPW(self, wg, wl, length, pos):
+    dbu = self.layout.dbu
+
+    gg = 2*wg+wl
+    #calculate the groundwidth to 3 times the line + gaps
+    gw = 3*gg
+    
+    #create the 3 rectangles that make up part of the tline
+    #calculate top ground
+    tg = ([pos[0],(gg+gw)/dbu],[length/dbu,(gg+gw*2)/dbu])
+    #draw top ground
+    self.cell.shapes(self.layer).insert(pya.Box(tg[0][0],tg[0][1],tg[1][0],tg[1][1]))
+    
+    #calculate tlin
+    tl = ([pos[0],(wg+gw)/dbu],[length/dbu,(wg+gw+wl)/dbu])
+    #draw tlin
+    self.cell.shapes(self.layer).insert(pya.Box(tl[0][0],tl[0][1],tl[1][0],tl[1][1]))
+    
+    #calculate bottom ground
+    bg = (pos,[length/dbu,gw/dbu])
+    #draw bottom ground
+    self.cell.shapes(self.layer).insert(pya.Box(bg[0][0],bg[0][1],bg[1][0],bg[1][1]))
+    
+    
+def drawText(self, label, text_size = 16, centre_pos = (0.0,0.0)):
+    dbu = self.layout.dbu  #Database unit scale
+                
+    # Create a subcell for the text PCell
+    text_pcell = self.layout.create_cell("TEXT", "Basic", {
+        "text": label, 
+        "layer": self.textLayer, 
+        "mag": text_size  # Scale text size to database units
+    })
+    #calculating translation to centre text on centre_pos
+    width = text_pcell.bbox().width()
+    height = text_pcell.bbox().height()
+    
+    centreVector = [-width/2+centre_pos[0]/dbu,-height/2+centre_pos[1]/dbu]
+    # Insert the text PCell into the layout at a position (x=0, y=0)
+    t = pya.Trans(pya.Trans.R0, centreVector[0], centreVector[1])  # No rotation, place at (0,0)
+    self.cell.insert(pya.CellInstArray(text_pcell.cell_index(), t))
 
 class CPW(pya.PCellDeclarationHelper):
   """
@@ -42,13 +83,20 @@ class CPW(pya.PCellDeclarationHelper):
     # declare the parameters
     #layer 
     self.param("layer", self.TypeLayer, "Layer", default=pya.LayerInfo(13, 0))
-    
+    #text label layer
+    self.param("textLayer", self.TypeLayer, "Text Layer", default=pya.LayerInfo(1, 0))
+    #set custom string dialogue
+    self.param("textString", self.TypeString, "Custom label (auto generated if empty)", default="")
+    #set text size
+    self.param("textSize", self.TypeDouble, "Font Size", default=16)
+    #target impedance
+    self.param("textPadding", self.TypeDouble, "Font Padding", default=10)
     #target impedance
     self.param("impedance", self.TypeDouble, "Characteristic Impedance", default=50)
     
     #feed parameters
     self.param("ll", self.TypeDouble, "Length", default=100)
-    self.param("wl", self.TypeDouble, "Line Width", default=9.02)
+    self.param("wl", self.TypeDouble, "Line Width", default=9.03)
     self.param("wg", self.TypeDouble, "Gap Width", default=14)
    
 
@@ -58,46 +106,35 @@ class CPW(pya.PCellDeclarationHelper):
 
   def display_text_impl(self):
     # Provide a descriptive text for the cell
-    return "CPW(L=" + str(self.ll) + ",Impedance =" + str(self.impedance) + ")"
+    return "CPW(L=" + str(self.ll) + ",Z0 =" + str(self.impedance) + ")"
     
   def produce_impl(self):
     dbu = self.layout.dbu
     # This is the main part of the implementation: create the layout
-    length = self.ll
     #does tline need a feed for probe landing (if the line width is too narrow it needs to be bridged)
-
-    wg = self.wg
-    wl = self.wl
-    #calculate the total gap between the grounds
-    gg = 2*wg+wl
-    #calculate the groundwidth to 3 times the line + gaps
-    gw = 3*gg
-    
     #switch case for the feed modes:
+    length = self.ll
     if self.feedmode == "off":
       length = self.ll
     if self.feedmode == "inset":
       ...
     if self.feedmode == "extend":
       ...
-    
-    
-    #create the 3 rectangles that make up part of the tline
-    #calculate top ground
-    tg = ([0,(gg+gw)/dbu],[length/dbu,(gg+gw*2)/dbu])
-    #draw top ground
-    self.cell.shapes(self.layer).insert(pya.Box(tg[0][0],tg[0][1],tg[1][0],tg[1][1]))
-    
-    #calculate tlin
-    tl = ([0,(wg+gw)/dbu],[length/dbu,(wg+gw+wl)/dbu])
-    #draw tlin
-    self.cell.shapes(self.layer).insert(pya.Box(tl[0][0],tl[0][1],tl[1][0],tl[1][1]))
-    
-    #calculate bottom ground
-    bg = ([0,0],[length/dbu,gw/dbu])
-    #draw bottom ground
-    self.cell.shapes(self.layer).insert(pya.Box(bg[0][0],bg[0][1],bg[1][0],bg[1][1]))
 
+    wg = self.wg
+    wl = self.wl
+    #calculate the total gap between the grounds
+    drawCPW(self, wg, wl, length, [0,0])
+    
+    #calculate label centre position
+    textPos = (length/2, -(self.textPadding+self.textSize/2))
+    
+    
+    #draw the device label
+    if self.textString == "":
+      drawText(self, "CPW " + str(self.impedance) + " Ohm " + str(self.ll) + " um", centre_pos = textPos)
+    else:
+      ...#drawText(self, self.textString, self.textSize, textPos)
 
 class MIM_Capacitor(pya.PCellDeclarationHelper):
   """
