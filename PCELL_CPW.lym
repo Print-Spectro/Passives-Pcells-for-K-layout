@@ -41,7 +41,7 @@ class CPW(pya.PCellDeclarationHelper):
 
     # declare the parameters
     #layer 
-    self.param("lb", self.TypeLayer, "BondpadLayer")
+    self.param("layer", self.TypeLayer, "Layer", default=pya.LayerInfo(13, 0))
     
     #target impedance
     self.param("impedance", self.TypeDouble, "Characteristic Impedance", default=50)
@@ -50,12 +50,6 @@ class CPW(pya.PCellDeclarationHelper):
     self.param("ll", self.TypeDouble, "Length", default=100)
     self.param("wl", self.TypeDouble, "Line Width", default=9.02)
     self.param("wg", self.TypeDouble, "Gap Width", default=14)
-
-    
-    self.param("ll", self.TypeDouble, "Feed Length", default=50)
-    self.param("wl", self.TypeDouble, "Feed Width", default=9.02)
-    self.param("wg", self.TypeDouble, "Gap Width", default=14)
-
    
 
     #set whether the feeds will be inset or extended off the end of the capacitor or off
@@ -64,36 +58,45 @@ class CPW(pya.PCellDeclarationHelper):
 
   def display_text_impl(self):
     # Provide a descriptive text for the cell
-    return "CPW(LX=" + str(self.lx) + ",LY=" + str(self.ly) + ")"
-    
-  def calculate_dimensions(self): 
-    ...
+    return "CPW(L=" + str(self.ll) + ",Impedance =" + str(self.impedance) + ")"
     
   def produce_impl(self):
     dbu = self.layout.dbu
     # This is the main part of the implementation: create the layout
-    
+    length = self.ll
     #does tline need a feed for probe landing (if the line width is too narrow it needs to be bridged)
 
-    
+    wg = self.wg
+    wl = self.wl
+    #calculate the total gap between the grounds
+    gg = 2*wg+wl
     #calculate the groundwidth to 3 times the line + gaps
-    self.groundWidth = 3*(2*self.wg+self.wl)
+    gw = 3*gg
     
     #switch case for the feed modes:
     if self.feedmode == "off":
+      length = self.ll
+    if self.feedmode == "inset":
+      ...
+    if self.feedmode == "extend":
       ...
     
     
-    
     #create the 3 rectangles that make up part of the tline
-    #create bottom ground
-    self.cell.shapes(self.lb).insert(pya.Box(4/dbu,4/dbu,self.lx/dbu,self.ly/dbu))
+    #calculate top ground
+    tg = ([0,(gg+gw)/dbu],[length/dbu,(gg+gw*2)/dbu])
+    #draw top ground
+    self.cell.shapes(self.layer).insert(pya.Box(tg[0][0],tg[0][1],tg[1][0],tg[1][1]))
     
-    #create tlin
-    self.cell.shapes(self.ld).insert(pya.Box(0,0,(self.lx+4)/dbu,(self.ly+4)/dbu))
+    #calculate tlin
+    tl = ([0,(wg+gw)/dbu],[length/dbu,(wg+gw+wl)/dbu])
+    #draw tlin
+    self.cell.shapes(self.layer).insert(pya.Box(tl[0][0],tl[0][1],tl[1][0],tl[1][1]))
     
-    #create top ground
-    self.cell.shapes(self.lp).insert(pya.Box(2/dbu,2/dbu,(self.lx+2)/dbu,(self.ly+2)/dbu))
+    #calculate bottom ground
+    bg = ([0,0],[length/dbu,gw/dbu])
+    #draw bottom ground
+    self.cell.shapes(self.layer).insert(pya.Box(bg[0][0],bg[0][1],bg[1][0],bg[1][1]))
 
 
 class MIM_Capacitor(pya.PCellDeclarationHelper):
