@@ -69,6 +69,24 @@ def drawText(self, label, text_size = 16, centre_pos = (0.0,0.0)):
     # Insert the text PCell into the layout at a position (x=0, y=0)
     t = pya.Trans(pya.Trans.R0, centreVector[0], centreVector[1])  # No rotation, place at (0,0)
     self.cell.insert(pya.CellInstArray(text_pcell.cell_index(), t))
+    
+def drawFeeds(self, component_dimension):
+    #calculate box
+    lx = component_dimension[0]
+    ly = component_dimension[1]
+    dbu = self.layout.dbu
+    # This is the main part of the implementation: create the layout
+    #draw the feeds
+    
+    drawCPW(self, self.wg, self.wl, self.lf, (0,0), self.lp)
+    drawCPW(self, self.wg, self.wl, self.lf, (self.lf+self.wg*2+lx,0), self.lp)
+    
+    #fill in missing ground planes
+    tg = ([self.lf, self.wg*8+self.wl*3.5+self.ly/2],[self.lf+self.wg*2+self.lx, self.wl*7+self.wg*14])
+    self.cell.shapes(self.lp).insert(pya.Box(tg[0][0]/dbu,tg[0][1]/dbu,tg[1][0]/dbu,tg[1][1]/dbu))
+    #bottom plane
+    bg = ([self.lf, 0],[self.lf+self.wg*2+self.lx, self.wg*6+self.wl*3.5-self.ly/2])
+    self.cell.shapes(self.lp).insert(pya.Box(bg[0][0]/dbu,bg[0][1]/dbu,bg[1][0]/dbu,bg[1][1]/dbu))
 
 class CPW(pya.PCellDeclarationHelper):
   """
@@ -191,6 +209,132 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     return "MIM_CAP(LX=" + str(self.lx) + ",LY=" + str(self.ly) + ")"
   
   def produce_impl(self):
+    #calculate box
+    
+    
+    dbu = self.layout.dbu
+    # This is the main part of the implementation: create the layout
+    #draw the feeds
+    
+    drawCPW(self, self.wg, self.wl, self.lf, (0,0), self.lp)
+    drawCPW(self, self.wg, self.wl, self.lf, (self.lf+self.wg*2+self.lx,0), self.lp)
+    
+    #fill in missing ground planes
+    tg = ([self.lf, self.wg*8+self.wl*3.5+self.ly/2],[self.lf+self.wg*2+self.lx, self.wl*7+self.wg*14])
+    self.cell.shapes(self.lp).insert(pya.Box(tg[0][0]/dbu,tg[0][1]/dbu,tg[1][0]/dbu,tg[1][1]/dbu))
+    #bottom plane
+    bg = ([self.lf, 0],[self.lf+self.wg*2+self.lx, self.wg*6+self.wl*3.5-self.ly/2])
+    self.cell.shapes(self.lp).insert(pya.Box(bg[0][0]/dbu,bg[0][1]/dbu,bg[1][0]/dbu,bg[1][1]/dbu))
+    
+    #calculate capacitor plate positions
+    #calculating top bond pad box positions (padding informes the other two layers)
+    centrex = self.lf+self.wg+self.lx/2
+    centrey = self.wl*3.5+self.wg*7
+    topPad = ([centrex-self.lx/2, centrey-self.ly/2],[centrex+self.lx/2, centrey+self.ly/2])
+    
+    #draw top pad
+    self.cell.shapes(self.lp).insert(pya.Box(topPad[0][0]/dbu,topPad[0][1]/dbu,topPad[1][0]/dbu,topPad[1][1]/dbu))
+    #draw dielectric
+    pd = self.pd
+    self.cell.shapes(self.ld).insert(pya.Box((topPad[0][0]-pd)/dbu,(topPad[0][1]-pd)/dbu,(topPad[1][0]+pd)/dbu,(topPad[1][1]+pd)/dbu))
+    #draw bottom pad
+    pb = self.pb
+    self.cell.shapes(self.lb).insert(pya.Box((topPad[0][0]-pb)/dbu,(topPad[0][1]-pb)/dbu,(topPad[1][0]+pb)/dbu,(topPad[1][1]+pb)/dbu))
+    #draw feeds
+    mode = "series"
+    if self.mode == "series":
+      mode = "series"
+    else:
+      mode = "shunt"
+    
+    if mode == "series":
+      #draw series feeds
+      rFeed = ([centrex+self.lx/2,centrey-self.wl/2],[centrex+self.lx/2+self.wg,centrey+self.wl/2])
+      self.cell.shapes(self.lp).insert(pya.Box((rFeed[0][0])/dbu,(rFeed[0][1])/dbu,(rFeed[1][0])/dbu,(rFeed[1][1])/dbu))
+      
+      lFeed = ([centrex-self.lx/2-self.wg-self.lo,centrey-self.wl/2],[centrex-self.lx/2-self.pb,centrey+self.wl/2])
+      self.cell.shapes(self.lb).insert(pya.Box((lFeed[0][0])/dbu,(lFeed[0][1])/dbu,(lFeed[1][0])/dbu,(lFeed[1][1])/dbu))
+    elif mode == "shunt":
+      #draw series feeds
+      rFeed = ([centrex+self.lx/2,centrey-self.wl/2],[centrex+self.lx/2+self.wg,centrey+self.wl/2])
+      self.cell.shapes(self.lp).insert(pya.Box((rFeed[0][0])/dbu,(rFeed[0][1])/dbu,(rFeed[1][0])/dbu,(rFeed[1][1])/dbu))
+      
+      lFeed = ([centrex-self.lx/2-self.wg,centrey-self.wl/2],[centrex-self.lx/2,centrey+self.wl/2])
+      self.cell.shapes(self.lp).insert(pya.Box((lFeed[0][0])/dbu,(lFeed[0][1])/dbu,(lFeed[1][0])/dbu,(lFeed[1][1])/dbu))
+      
+      #draw ground feeds
+      #draw top feed
+      tFeed = ([centrex-self.sw,centrey+self.ly/2+self.pb],[centrex+self.sw,centrey+self.ly/2+self.wg+self.lo])
+      self.cell.shapes(self.lb).insert(pya.Box((tFeed[0][0])/dbu,(tFeed[0][1])/dbu,(tFeed[1][0])/dbu,(tFeed[1][1])/dbu))
+      
+      #draw bottom feed
+      bFeed = ([centrex-self.sw,centrey-self.ly/2-self.pb],[centrex+self.sw,centrey-self.wg-self.lo-self.ly/2])
+      self.cell.shapes(self.lb).insert(pya.Box((bFeed[0][0])/dbu,(bFeed[0][1])/dbu,(bFeed[1][0])/dbu,(bFeed[1][1])/dbu))
+    
+    #calculate label centre position
+    textPos = (centrex, -(self.textPadding+self.textSize/2))
+    
+    #estimate capacitance
+    e0 = 8.85418782e-12
+    C = (self.er*e0*self.lx*self.ly)*1e-12/(self.gap*1e-9)*1e12
+    
+    #draw the device label
+    if self.textString == "":
+      drawText(self, "MIM CAP " + "{:.3f}".format(C) + " pF ",self.textSize, centre_pos = textPos)
+    else:
+      drawText(self, self.textString, self.textSize, textPos)
+
+class Spiral_Inductor(pya.PCellDeclarationHelper):
+  """
+  The PCell declaration for the circle
+  """
+
+  def __init__(self):
+
+    # Important: initialize the super class
+    super(Spiral_Inductor, self).__init__()
+
+    # declare the parameters
+    
+    #inductor layers
+    self.param("lp", self.TypeLayer, "BondpadLayer", default=pya.LayerInfo(13, 0))
+    self.param("ld", self.TypeLayer, "DielectricLayer", default=pya.LayerInfo(10, 0))
+    self.param("lb", self.TypeLayer, "BottomPlateLayer", default=pya.LayerInfo(3, 0))
+    
+
+    #Parameters for the CPW capacitor
+    self.param("lx", self.TypeDouble, "Top Plate Length X", default=20)
+    self.param("ly", self.TypeDouble, "Top Plate Length Y", default=20)
+    self.param("pd", self.TypeDouble, "Dielectric padding", default=4)
+    self.param("pb", self.TypeDouble, "Bottom plate padding", default=2)
+    self.param("gap", self.TypeDouble, "Dielectric thickness nm", default=160)
+    self.param("er", self.TypeDouble, "Relative Permittivity", default=7.0)
+    
+    #parameters for the feeds
+    self.param("lf", self.TypeDouble, "Feed length", default=20)
+    self.param("wl", self.TypeDouble, "Line thickness", default=9)
+    self.param("wg", self.TypeDouble, "Waveguide gap width", default=14)
+    #set overlap for top plate and bottom plate metal layers
+    self.param("lo", self.TypeDouble, "Metal overlap", default=2)
+    #set shunt to ground width
+    self.param("sw", self.TypeDouble, "Shunt width", default=10)
+    
+    #text parameters
+    self.param("textLayer", self.TypeLayer, "Text Layer", default=pya.LayerInfo(1, 0))
+    #set custom string dialogue
+    self.param("textString", self.TypeString, "Custom label (auto generated if empty)", default="")
+    #set text size
+    self.param("textSize", self.TypeDouble, "Font Size", default=16)
+    #target impedance
+    self.param("textPadding", self.TypeDouble, "Font Padding", default=10)
+    #target impedance
+
+
+  def display_text_impl(self):
+    # Provide a descriptive text for the cell
+    return "MIM_CAP(LX=" + str(self.lx) + ",LY=" + str(self.ly) + ")"
+  
+  def produce_impl(self):
     dbu = self.layout.dbu
     # This is the main part of the implementation: create the layout
     #draw the feeds
@@ -261,7 +405,7 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
       drawText(self, "MIM CAP " + "{:.3f}".format(C) + " pF ",self.textSize, centre_pos = textPos)
     else:
       drawText(self, self.textString, self.textSize, textPos)
-
+      
 
 class MyLib(pya.Library):
   """
