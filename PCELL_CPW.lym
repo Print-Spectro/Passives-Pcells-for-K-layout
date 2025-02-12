@@ -28,7 +28,7 @@ NOTE: after changing the code, the macro needs to be rerun to install the new
 implementation. The macro is also set to "auto run" to install the PCell 
 when KLayout is run.
 """
-def drawCPW(self, wg, wl, length, pos):
+def drawCPW(self, wg, wl, length, pos, layer):
     dbu = self.layout.dbu
 
     gg = 2*wg+wl
@@ -37,19 +37,19 @@ def drawCPW(self, wg, wl, length, pos):
     
     #create the 3 rectangles that make up part of the tline
     #calculate top ground
-    tg = ([pos[0],(gg+gw)/dbu],[length/dbu,(gg+gw*2)/dbu])
+    tg = ([pos[0]/dbu,(pos[1]+(gg+gw))/dbu],[(pos[0]+length)/dbu,(pos[1]+gg+gw*2)/dbu])
     #draw top ground
-    self.cell.shapes(self.layer).insert(pya.Box(tg[0][0],tg[0][1],tg[1][0],tg[1][1]))
+    self.cell.shapes(layer).insert(pya.Box(tg[0][0],tg[0][1],tg[1][0],tg[1][1]))
     
     #calculate tlin
-    tl = ([pos[0],(wg+gw)/dbu],[length/dbu,(wg+gw+wl)/dbu])
+    tl = ([pos[0]/dbu,(pos[1]+wg+gw)/dbu],[(pos[0]+length)/dbu,(pos[1]+wg+gw+wl)/dbu])
     #draw tlin
-    self.cell.shapes(self.layer).insert(pya.Box(tl[0][0],tl[0][1],tl[1][0],tl[1][1]))
+    self.cell.shapes(layer).insert(pya.Box(tl[0][0],tl[0][1],tl[1][0],tl[1][1]))
     
     #calculate bottom ground
-    bg = (pos,[length/dbu,gw/dbu])
+    bg = ([pos[0]/dbu,pos[1]/dbu],[(pos[0]+length)/dbu,(pos[1]+gw)/dbu])
     #draw bottom ground
-    self.cell.shapes(self.layer).insert(pya.Box(bg[0][0],bg[0][1],bg[1][0],bg[1][1]))
+    self.cell.shapes(layer).insert(pya.Box(bg[0][0],bg[0][1],bg[1][0],bg[1][1]))
     
     
 def drawText(self, label, text_size = 16, centre_pos = (0.0,0.0)):
@@ -113,7 +113,8 @@ class CPW(pya.PCellDeclarationHelper):
     # This is the main part of the implementation: create the layout
     #does tline need a feed for probe landing (if the line width is too narrow it needs to be bridged)
     #switch case for the feed modes:
-    length = self.ll
+    length = self.ll #bug with initiation having feedmode
+    #print(self.feedmode)
     if self.feedmode == "off":
       length = self.ll
     if self.feedmode == "inset":
@@ -124,7 +125,7 @@ class CPW(pya.PCellDeclarationHelper):
     wg = self.wg
     wl = self.wl
     #calculate the total gap between the grounds
-    drawCPW(self, wg, wl, length, [0,0])
+    drawCPW(self, wg, wl, length, [0,0], self.layer)
     
     #calculate label centre position
     textPos = (length/2, -(self.textPadding+self.textSize/2))
@@ -132,9 +133,9 @@ class CPW(pya.PCellDeclarationHelper):
     
     #draw the device label
     if self.textString == "":
-      drawText(self, "CPW " + str(self.impedance) + " Ohm " + str(self.ll) + " um", centre_pos = textPos)
+      drawText(self, "CPW " + str(self.impedance) + " Ohm " + str(self.ll) + " um",self.textSize, centre_pos = textPos)
     else:
-      ...#drawText(self, self.textString, self.textSize, textPos)
+      drawText(self, self.textString, self.textSize, textPos)
 
 class MIM_Capacitor(pya.PCellDeclarationHelper):
   """
@@ -149,22 +150,40 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     # declare the parameters
     
     #capacitor layers
-    self.param("lb", self.TypeLayer, "BondpadLayer")
-    self.param("ld", self.TypeLayer, "DielectricLayer")
-    self.param("lp", self.TypeLayer, "BottomPlateLayer")
+    self.param("lp", self.TypeLayer, "BondpadLayer", default=pya.LayerInfo(13, 0))
+    self.param("ld", self.TypeLayer, "DielectricLayer", default=pya.LayerInfo(10, 0))
+    self.param("lb", self.TypeLayer, "BottomPlateLayer", default=pya.LayerInfo(3, 0))
     
-    #capacitor types: series and shunt
-    self.param("lp", self.TypeLayer, "BottomPlateLayer")
-    
-    # Parameter for selecting capacitor mode
+    #Two capacitor types: Series and shunt 
     self.param("mode", self.TypeString, "Capacitor Mode", 
                 default="series", choices=(["Series", "series"],["Shunt","shunt"]))
 
     #Parameters for the CPW capacitor
-    self.param("lx", self.TypeDouble, "Length X", default=10.0)
-    self.param("ly", self.TypeDouble, "Length Y", default=10.0)
-    self.param("gap", self.TypeDouble, "Gap", default=6.0)
-    self.param("e", self.TypeDouble, "Permittivity", default=7.0)
+    self.param("lx", self.TypeDouble, "Top Plate Length X", default=20)
+    self.param("ly", self.TypeDouble, "Top Plate Length Y", default=20)
+    self.param("pd", self.TypeDouble, "Dielectric padding", default=4)
+    self.param("pb", self.TypeDouble, "Bottom plate padding", default=2)
+    self.param("gap", self.TypeDouble, "Dielectric thickness nm", default=160)
+    self.param("er", self.TypeDouble, "Relative Permittivity", default=7.0)
+    
+    #parameters for the feeds
+    self.param("lf", self.TypeDouble, "Feed length", default=20)
+    self.param("wl", self.TypeDouble, "Line thickness", default=9)
+    self.param("wg", self.TypeDouble, "Waveguide gap width", default=14)
+    #set overlap for top plate and bottom plate metal layers
+    self.param("lo", self.TypeDouble, "Metal overlap", default=2)
+    #set shunt to ground width
+    self.param("sw", self.TypeDouble, "Shunt width", default=10)
+    
+    #text parameters
+    self.param("textLayer", self.TypeLayer, "Text Layer", default=pya.LayerInfo(1, 0))
+    #set custom string dialogue
+    self.param("textString", self.TypeString, "Custom label (auto generated if empty)", default="")
+    #set text size
+    self.param("textSize", self.TypeDouble, "Font Size", default=16)
+    #target impedance
+    self.param("textPadding", self.TypeDouble, "Font Padding", default=10)
+    #target impedance
 
 
   def display_text_impl(self):
@@ -174,10 +193,74 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
   def produce_impl(self):
     dbu = self.layout.dbu
     # This is the main part of the implementation: create the layout
-    # create the shape
-    self.cell.shapes(self.lb).insert(pya.Box(4/dbu,4/dbu,self.lx/dbu,self.ly/dbu))
-    self.cell.shapes(self.ld).insert(pya.Box(0,0,(self.lx+4)/dbu,(self.ly+4)/dbu))
-    self.cell.shapes(self.lp).insert(pya.Box(2/dbu,2/dbu,(self.lx+2)/dbu,(self.ly+2)/dbu))
+    #draw the feeds
+    drawCPW(self, self.wg, self.wl, self.lf, (0,0), self.lp)
+    drawCPW(self, self.wg, self.wl, self.lf, (self.lf+self.wg*2+self.lx,0), self.lp)
+    
+    #fill in missing ground planes
+    tg = ([self.lf, self.wg*8+self.wl*3.5+self.ly/2],[self.lf+self.wg*2+self.lx, self.wl*7+self.wg*14])
+    self.cell.shapes(self.lp).insert(pya.Box(tg[0][0]/dbu,tg[0][1]/dbu,tg[1][0]/dbu,tg[1][1]/dbu))
+    #bottom plane
+    bg = ([self.lf, 0],[self.lf+self.wg*2+self.lx, self.wg*6+self.wl*3.5-self.ly/2])
+    self.cell.shapes(self.lp).insert(pya.Box(bg[0][0]/dbu,bg[0][1]/dbu,bg[1][0]/dbu,bg[1][1]/dbu))
+    
+    #calculate capacitor plate positions
+    #calculating top bond pad box positions (padding informes the other two layers)
+    centrex = self.lf+self.wg+self.lx/2
+    centrey = self.wl*3.5+self.wg*7
+    topPad = ([centrex-self.lx/2, centrey-self.ly/2],[centrex+self.lx/2, centrey+self.ly/2])
+    
+    #draw top pad
+    self.cell.shapes(self.lp).insert(pya.Box(topPad[0][0]/dbu,topPad[0][1]/dbu,topPad[1][0]/dbu,topPad[1][1]/dbu))
+    #draw dielectric
+    pd = self.pd
+    self.cell.shapes(self.ld).insert(pya.Box((topPad[0][0]-pd)/dbu,(topPad[0][1]-pd)/dbu,(topPad[1][0]+pd)/dbu,(topPad[1][1]+pd)/dbu))
+    #draw bottom pad
+    pb = self.pb
+    self.cell.shapes(self.lb).insert(pya.Box((topPad[0][0]-pb)/dbu,(topPad[0][1]-pb)/dbu,(topPad[1][0]+pb)/dbu,(topPad[1][1]+pb)/dbu))
+    #draw feeds
+    mode = "series"
+    if self.mode == "series":
+      mode = "series"
+    else:
+      mode = "shunt"
+    
+    if mode == "series":
+      #draw series feeds
+      rFeed = ([centrex+self.lx/2,centrey-self.wl/2],[centrex+self.lx/2+self.wg,centrey+self.wl/2])
+      self.cell.shapes(self.lp).insert(pya.Box((rFeed[0][0])/dbu,(rFeed[0][1])/dbu,(rFeed[1][0])/dbu,(rFeed[1][1])/dbu))
+      
+      lFeed = ([centrex-self.lx/2-self.wg-self.lo,centrey-self.wl/2],[centrex-self.lx/2-self.pb,centrey+self.wl/2])
+      self.cell.shapes(self.lb).insert(pya.Box((lFeed[0][0])/dbu,(lFeed[0][1])/dbu,(lFeed[1][0])/dbu,(lFeed[1][1])/dbu))
+    elif mode == "shunt":
+      #draw series feeds
+      rFeed = ([centrex+self.lx/2,centrey-self.wl/2],[centrex+self.lx/2+self.wg,centrey+self.wl/2])
+      self.cell.shapes(self.lp).insert(pya.Box((rFeed[0][0])/dbu,(rFeed[0][1])/dbu,(rFeed[1][0])/dbu,(rFeed[1][1])/dbu))
+      
+      lFeed = ([centrex-self.lx/2-self.wg,centrey-self.wl/2],[centrex-self.lx/2,centrey+self.wl/2])
+      self.cell.shapes(self.lp).insert(pya.Box((lFeed[0][0])/dbu,(lFeed[0][1])/dbu,(lFeed[1][0])/dbu,(lFeed[1][1])/dbu))
+      
+      #draw ground feeds
+      #draw top feed
+      tFeed = ([centrex-self.sw,centrey+self.ly/2+self.pb],[centrex+self.sw,centrey+self.ly/2+self.wg+self.lo])
+      self.cell.shapes(self.lb).insert(pya.Box((tFeed[0][0])/dbu,(tFeed[0][1])/dbu,(tFeed[1][0])/dbu,(tFeed[1][1])/dbu))
+      
+      #draw bottom feed
+      bFeed = ([centrex-self.sw,centrey-self.ly/2-self.pb],[centrex+self.sw,centrey-self.wg-self.lo-self.ly/2])
+      self.cell.shapes(self.lb).insert(pya.Box((bFeed[0][0])/dbu,(bFeed[0][1])/dbu,(bFeed[1][0])/dbu,(bFeed[1][1])/dbu))
+    
+    #calculate label centre position
+    textPos = (centrex, -(self.textPadding+self.textSize/2))
+    
+    #estimate capacitance
+    e0 = 8.85418782e-12
+    C = (self.er*e0*self.lx*self.ly)*1e-12/(self.gap*1e-9)*1e12
+    
+    #draw the device label
+    if self.textString == "":
+      drawText(self, "MIM CAP " + "{:.3f}".format(C) + " pF ",self.textSize, centre_pos = textPos)
+    else:
+      drawText(self, self.textString, self.textSize, textPos)
 
 
 class MyLib(pya.Library):
