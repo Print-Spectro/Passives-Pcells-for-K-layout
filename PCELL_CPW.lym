@@ -84,7 +84,7 @@ def drawFeeds(self, lx, ly, translate = (0,0), infill = True):
     
     if infill:
       #fill in missing ground planes
-      tg = ([self.lf+tx, self.wg*8+self.wl*3.5+self.ly/2+ty],[self.lf+self.wg*2+lx+tx, self.wl*7+self.wg*14+ty])
+      tg = ([self.lf+tx, self.wg*8+self.wl*3.5+ly/2+ty],[self.lf+self.wg*2+lx+tx, self.wl*7+self.wg*14+ty])
       self.cell.shapes(self.lp).insert(pya.Box(tg[0][0]/dbu,tg[0][1]/dbu,tg[1][0]/dbu,tg[1][1]/dbu))
       #bottom plane
       bg = ([self.lf+tx, 0+ty],[self.lf+self.wg*2+lx+tx, self.wg*6+self.wl*3.5-ly/2+ty])
@@ -311,9 +311,9 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.param("dout", self.TypeDouble, "Outder Diameter", default=50)
     self.param("din", self.TypeDouble, "Inner Diameter", default=18)
     self.param("w", self.TypeDouble, "Inductor Conductor Width", default=4)
-    self.param("s", self.TypeDouble, "Gap between coils (zero for auto)", default=0)
+    self.param("s", self.TypeDouble, "Gap between coils (zero for auto)", default=1)
     self.param("pd", self.TypeDouble, "Dielectric padding", default=4)
-    self.param("pb", self.TypeDouble, "Bottom plate padding", default=2)
+    self.param("pb", self.TypeDouble, "Bottom plate padding", default=0)
     
     #parameters for the feeds
     self.param("lf", self.TypeDouble, "Feed length", default=20)
@@ -358,7 +358,7 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.spiralPoints.append(last_point)
     new_width = pl-2*w-2*s
     return last_point, new_width
-  
+    
   def generate_spiral(self, centre):
     dbu = self.layout.dbu
     cx = centre[0]
@@ -367,12 +367,15 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     din = self.din
     nt = self.nt
     w = self.w
+    print(w)
     s = (((dout-din)/2)-(nt)*w)/(nt-1)
     if nt &lt;= 1:
       s = self.s
-    if self.s &gt; 0: #calculating w and s (width and spacing of the spiral line)
+    if self.s != 0: #calculating w and s (width and spacing of the spiral line)
+      s = self.s #this was an annoying bug to fix fuck me (I had this line after calculating w)
       w = (((dout-din)/2)-(nt-1)*s)/nt
-      s = self.s
+      
+      
       #self.w = w #will test how this behaves later
     
     feed_start = [cx-self.wg-self.dout/2, cy]
@@ -384,16 +387,31 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.spiralPoints.append(turnStart)
     
     for i in range(int(self.nt)):
+      #updating the start point and path length from the previous turn, creating concentric turns ;)
+      #there must be a better way to do this mathematically using circles or something idk
+      #This is what you get when you combine amateur maths with amateur coding and a lot of motivation
       turnStart, path_length = self.add_one_turn(turnStart, dout, path_length, w, s)
-
+    
+    tunnel_feed_start = self.spiralPoints[-1][0]-(w/2+self.pb/2)
+    tunnel_feed_end = cx+self.wg+self.dout/2+self.lo
+    #draw tunneling feed
+    feed_points = [pya.Point(tunnel_feed_start/dbu, cy/dbu), pya.Point(tunnel_feed_end/dbu, cy/dbu)]
+    self.cell.shapes(self.lb).insert(pya.Path(feed_points, (w+self.pb*2)/dbu))
+    
+    #adding the dielectric using a path
+    dielectric_start = (cx + dout/2)-(dout-din)/2-self.pd
+    dielectric_end = (cx + dout/2)+self.pd
+    dielectric_points = [pya.Point(dielectric_start/dbu, cy/dbu), pya.Point(dielectric_end/dbu, cy/dbu)]
+    self.cell.shapes(self.ld).insert(pya.Path(dielectric_points, (w+self.pd*2)/dbu))
+    
+    #moving end of spiral to overlap properly with the feed
+    self.spiralPoints[-1][1] = cy+w/2
     # Convert to pya.Point objects
     path_points = [pya.Point(x/dbu, y/dbu) for x, y in self.spiralPoints]
 
     # Create the path
     path = pya.Path(path_points, w/dbu)
     
-    
-      
     self.cell.shapes(self.lp).insert(path)
   
   def produce_impl(self):
@@ -404,13 +422,12 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.spiralPoints = []
     # This is the main part of the implementation: create the layout
     #draw the feeds
-    outputs = drawFeeds(self, self.dout, self.dout, (0,0))
+    outputs = drawFeeds(self, self.dout, self.dout)
     centrex = outputs["centrex"]
     centrey = outputs["centrey"]
     
+    #generate the spiral (see the function)
     self.generate_spiral((centrex, centrey))
-    
-    
     
     
     textPos = (centrex, -(self.textPadding+self.textSize/2))
