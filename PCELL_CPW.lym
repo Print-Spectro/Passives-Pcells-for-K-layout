@@ -70,23 +70,34 @@ def drawText(self, label, text_size = 16, centre_pos = (0.0,0.0)):
     t = pya.Trans(pya.Trans.R0, centreVector[0], centreVector[1])  # No rotation, place at (0,0)
     self.cell.insert(pya.CellInstArray(text_pcell.cell_index(), t))
     
-def drawFeeds(self, component_dimension):
+def drawFeeds(self, lx, ly, translate = (0,0)):
     #calculate box
-    lx = component_dimension[0]
-    ly = component_dimension[1]
+    tx = translate[0]
+    ty = translate[1]
+
     dbu = self.layout.dbu
     # This is the main part of the implementation: create the layout
     #draw the feeds
     
-    drawCPW(self, self.wg, self.wl, self.lf, (0,0), self.lp)
-    drawCPW(self, self.wg, self.wl, self.lf, (self.lf+self.wg*2+lx,0), self.lp)
+    drawCPW(self, self.wg, self.wl, self.lf, (tx,ty), self.lp)
+    drawCPW(self, self.wg, self.wl, self.lf, (self.lf+self.wg*2+lx+tx,0+ty), self.lp)
     
     #fill in missing ground planes
-    tg = ([self.lf, self.wg*8+self.wl*3.5+self.ly/2],[self.lf+self.wg*2+self.lx, self.wl*7+self.wg*14])
+    tg = ([self.lf, self.wg*8+self.wl*3.5+self.ly/2],[self.lf+self.wg*2+lx, self.wl*7+self.wg*14])
     self.cell.shapes(self.lp).insert(pya.Box(tg[0][0]/dbu,tg[0][1]/dbu,tg[1][0]/dbu,tg[1][1]/dbu))
     #bottom plane
-    bg = ([self.lf, 0],[self.lf+self.wg*2+self.lx, self.wg*6+self.wl*3.5-self.ly/2])
+    bg = ([self.lf, 0],[self.lf+self.wg*2+lx, self.wg*6+self.wl*3.5-ly/2])
     self.cell.shapes(self.lp).insert(pya.Box(bg[0][0]/dbu,bg[0][1]/dbu,bg[1][0]/dbu,bg[1][1]/dbu))
+    
+    #calculateCentrePosition
+    centrex = self.lf+self.wg+self.lx/2
+    centrey = self.wl*3.5+self.wg*7
+    
+    return centrex, centrey
+    
+def drawFeedRamp():
+  ...
+  
 
 class CPW(pya.PCellDeclarationHelper):
   """
@@ -209,27 +220,16 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     return "MIM_CAP(LX=" + str(self.lx) + ",LY=" + str(self.ly) + ")"
   
   def produce_impl(self):
-    #calculate box
-    
-    
+
     dbu = self.layout.dbu
-    # This is the main part of the implementation: create the layout
+  
     #draw the feeds
     
-    drawCPW(self, self.wg, self.wl, self.lf, (0,0), self.lp)
-    drawCPW(self, self.wg, self.wl, self.lf, (self.lf+self.wg*2+self.lx,0), self.lp)
-    
-    #fill in missing ground planes
-    tg = ([self.lf, self.wg*8+self.wl*3.5+self.ly/2],[self.lf+self.wg*2+self.lx, self.wl*7+self.wg*14])
-    self.cell.shapes(self.lp).insert(pya.Box(tg[0][0]/dbu,tg[0][1]/dbu,tg[1][0]/dbu,tg[1][1]/dbu))
-    #bottom plane
-    bg = ([self.lf, 0],[self.lf+self.wg*2+self.lx, self.wg*6+self.wl*3.5-self.ly/2])
-    self.cell.shapes(self.lp).insert(pya.Box(bg[0][0]/dbu,bg[0][1]/dbu,bg[1][0]/dbu,bg[1][1]/dbu))
+    centrex, centrey = drawFeeds(self, self.lx, self.ly)
     
     #calculate capacitor plate positions
-    #calculating top bond pad box positions (padding informes the other two layers)
-    centrex = self.lf+self.wg+self.lx/2
-    centrey = self.wl*3.5+self.wg*7
+    #calculating top bond pad box positions (padding informs the other two layers)
+
     topPad = ([centrex-self.lx/2, centrey-self.ly/2],[centrex+self.lx/2, centrey+self.ly/2])
     
     #draw top pad
