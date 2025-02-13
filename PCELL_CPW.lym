@@ -92,7 +92,7 @@ def drawFeeds(self, lx, ly, translate = (0,0), infill = True):
     
     #calculateCentrePosition
     outputs = {
-    "centrex" : self.lf+self.wg+self.lx/2+tx,
+    "centrex" : self.lf+self.wg+lx/2+tx,
     "centrey" : self.wl*3.5+self.wg*7+ty,
     "feedWidth" : self.lf*2+self.wg*2+lx,
     "feedHeight" : self.wl*7+self.wg*14+ty}
@@ -307,9 +307,9 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.param("lb", self.TypeLayer, "Bottom Plate Layer", default=pya.LayerInfo(3, 0))
      
     #Parameters for the CPW capacitor
-    self.param("nt", self.TypeDouble, "Number of Turns", default=18)
-    self.param("dout", self.TypeDouble, "Outder Diameter", default=18)
-    self.param("din", self.TypeDouble, "Inner Diameter", default=50)
+    self.param("nt", self.TypeDouble, "Number of Turns", default=3)
+    self.param("dout", self.TypeDouble, "Outder Diameter", default=50)
+    self.param("din", self.TypeDouble, "Inner Diameter", default=18)
     self.param("w", self.TypeDouble, "Inductor Conductor Width", default=4)
     self.param("s", self.TypeDouble, "Gap between coils (zero for auto)", default=0)
     self.param("pd", self.TypeDouble, "Dielectric padding", default=4)
@@ -322,7 +322,6 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     #set overlap for top plate and bottom plate metal layers
     self.param("lo", self.TypeDouble, "Metal overlap", default=2)
     #set shunt to ground width
-    self.param("sw", self.TypeDouble, "Shunt width", default=10)
     
     #text parameters
     self.param("textLayer", self.TypeLayer, "Text Layer", default=pya.LayerInfo(1, 0))
@@ -335,13 +334,14 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     #target impedance
     
     self.spiralPoints = []
-
+    self.ly=0
+    self.lx=0
 
   def display_text_impl(self):
     # Provide a descriptive text for the cell
     return "Spiral Inductor(Dout=" + str(self.dout) + ",Din=" + str(self.din) + ")"
     
-  def add_one_turn_points(self, start, dout, path_length, width, spacing):
+  def add_one_turn(self, start, dout, path_length, width, spacing):
     pl = path_length
     s = spacing
     w = width
@@ -352,13 +352,15 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.spiralPoints.append(secondPoint)
     
     thirdPoint = [secondPoint[0]-(pl-w-s), secondPoint[1]]
-    self.spiralPoint.append(thirdPoint)
+    self.spiralPoints.append(thirdPoint)
     
-    last_point = [thirdPoint[0], thirdPoint[1]+(pl-w-w)]
+    last_point = [thirdPoint[0], thirdPoint[1]+(pl-w-s)]
+    self.spiralPoints.append(last_point)
+    new_width = pl-2*w-2*s
+    return last_point, new_width
   
-    return last_point
-  
-  def generate_spiral(self, centre = (0.0,0.0)):
+  def generate_spiral(self, centre):
+    dbu = self.layout.dbu
     cx = centre[0]
     cy = centre[1]
     dout = self.dout
@@ -366,6 +368,8 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     nt = self.nt
     w = self.w
     s = (((dout-din)/2)-(nt)*w)/(nt-1)
+    if nt &lt;= 1:
+      s = self.s
     if self.s &gt; 0: #calculating w and s (width and spacing of the spiral line)
       w = (((dout-din)/2)-(nt-1)*s)/nt
       s = self.s
@@ -376,71 +380,44 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     feedConnect = [cx-self.dout/2+w/2, cy] #adding 1/8 of a turn to connect to the feed to the spiral
     self.spiralPoints.append(feedConnect)
     path_length = dout-w
-    turnStart = [feedConnect[0], cy+dout/2#calculating the first point of the first turn of the spiral
+    turnStart = [feedConnect[0], cy+dout/2-w/2]#calculating the first point of the first turn of the spiral
     self.spiralPoints.append(turnStart)
-    for i in range(nt):
+    
+    for i in range(int(self.nt)):
+      turnStart, path_length = self.add_one_turn(turnStart, dout, path_length, w, s)
+
+    # Convert to pya.Point objects
+    path_points = [pya.Point(x/dbu, y/dbu) for x, y in self.spiralPoints]
+
+    # Create the path
+    path = pya.Path(path_points, w/dbu)
+    
+    
       
+    self.cell.shapes(self.lp).insert(path)
   
   def produce_impl(self):
     dbu = self.layout.dbu
+    self.ly = self.w
+    self.lx = self.w
+    
+    self.spiralPoints = []
     # This is the main part of the implementation: create the layout
     #draw the feeds
-    outputs = drawFeeds(self, self.lx, self.ly, (0,0))
+    outputs = drawFeeds(self, self.dout, self.dout, (0,0))
     centrex = outputs["centrex"]
     centrey = outputs["centrey"]
     
-    #calculate box for top pad
-    topPad = ([centrex-self.lx/2, centrey-self.ly/2],[centrex+self.lx/2, centrey+self.ly/2])
+    self.generate_spiral((centrex, centrey))
     
-    #draw top pad
-    self.cell.shapes(self.lp).insert(pya.Box(topPad[0][0]/dbu,topPad[0][1]/dbu,topPad[1][0]/dbu,topPad[1][1]/dbu))
-    #draw dielectric with padding
-    pd = self.pd
-    self.cell.shapes(self.ld).insert(pya.Box((topPad[0][0]-pd)/dbu,(topPad[0][1]-pd)/dbu,(topPad[1][0]+pd)/dbu,(topPad[1][1]+pd)/dbu))
-    #draw bottom pad with padding
-    pb = self.pb
-    self.cell.shapes(self.lb).insert(pya.Box((topPad[0][0]-pb)/dbu,(topPad[0][1]-pb)/dbu,(topPad[1][0]+pb)/dbu,(topPad[1][1]+pb)/dbu))
-    #draw feeds
-    mode = "series"
-    if self.mode == "series":
-      mode = "series"
-    else:
-      mode = "shunt"
     
-    if mode == "series":
-      #draw series feeds
-      rFeed = ([centrex+self.lx/2,centrey-self.wl/2],[centrex+self.lx/2+self.wg,centrey+self.wl/2])
-      self.cell.shapes(self.lp).insert(pya.Box((rFeed[0][0])/dbu,(rFeed[0][1])/dbu,(rFeed[1][0])/dbu,(rFeed[1][1])/dbu))
-      
-      lFeed = ([centrex-self.lx/2-self.wg-self.lo,centrey-self.wl/2],[centrex-self.lx/2-self.pb,centrey+self.wl/2])
-      self.cell.shapes(self.lb).insert(pya.Box((lFeed[0][0])/dbu,(lFeed[0][1])/dbu,(lFeed[1][0])/dbu,(lFeed[1][1])/dbu))
-    elif mode == "shunt":
-      #draw series feeds
-      rFeed = ([centrex+self.lx/2,centrey-self.wl/2],[centrex+self.lx/2+self.wg,centrey+self.wl/2])
-      self.cell.shapes(self.lp).insert(pya.Box((rFeed[0][0])/dbu,(rFeed[0][1])/dbu,(rFeed[1][0])/dbu,(rFeed[1][1])/dbu))
-      
-      lFeed = ([centrex-self.lx/2-self.wg,centrey-self.wl/2],[centrex-self.lx/2,centrey+self.wl/2])
-      self.cell.shapes(self.lp).insert(pya.Box((lFeed[0][0])/dbu,(lFeed[0][1])/dbu,(lFeed[1][0])/dbu,(lFeed[1][1])/dbu))
-      
-      #draw ground feeds
-      #draw top feed
-      tFeed = ([centrex-self.sw,centrey+self.ly/2+self.pb],[centrex+self.sw,centrey+self.ly/2+self.wg+self.lo])
-      self.cell.shapes(self.lb).insert(pya.Box((tFeed[0][0])/dbu,(tFeed[0][1])/dbu,(tFeed[1][0])/dbu,(tFeed[1][1])/dbu))
-      
-      #draw bottom feed
-      bFeed = ([centrex-self.sw,centrey-self.ly/2-self.pb],[centrex+self.sw,centrey-self.wg-self.lo-self.ly/2])
-      self.cell.shapes(self.lb).insert(pya.Box((bFeed[0][0])/dbu,(bFeed[0][1])/dbu,(bFeed[1][0])/dbu,(bFeed[1][1])/dbu))
     
-    #calculate label centre position
+    
     textPos = (centrex, -(self.textPadding+self.textSize/2))
-    
-    #estimate capacitance
-    e0 = 8.85418782e-12
-    C = (self.er*e0*self.lx*self.ly)*1e-12/(self.gap*1e-9)*1e12
-    
+    L = 1.0
     #draw the device label
     if self.textString == "":
-      drawText(self, "MIM CAP " + "{:.3f}".format(C) + " pF ",self.textSize, centre_pos = textPos)
+      drawText(self, "Inductor " + "{:.3f}".format(L) + " nH ",self.textSize, centre_pos = textPos)
     else:
       drawText(self, self.textString, self.textSize, textPos)
       
@@ -460,7 +437,7 @@ class MyLib(pya.Library):
     # That would be the place to put in more PCells ...
     self.layout().register_pcell("CPW", CPW())
     self.layout().register_pcell("MIM_Capacitor", MIM_Capacitor())
-    
+    self.layout().register_pcell("Spiral_Inductor", Spiral_Inductor())
     # Register us with the name "MyLib".
     # If a library with that name already existed, it will be replaced then.
     self.register("GaN_Lib")
