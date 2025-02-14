@@ -52,6 +52,8 @@ def drawCPW(self, wg, wl, length, pos, layer):
     self.cell.shapes(layer).insert(pya.Box(bg[0][0],bg[0][1],bg[1][0],bg[1][1]))
     
     
+    
+    
 def drawText(self, label, text_size = 16, centre_pos = (0.0,0.0)):
     dbu = self.layout.dbu  #Database unit scale
                 
@@ -70,25 +72,40 @@ def drawText(self, label, text_size = 16, centre_pos = (0.0,0.0)):
     t = pya.Trans(pya.Trans.R0, centreVector[0], centreVector[1])  # No rotation, place at (0,0)
     self.cell.insert(pya.CellInstArray(text_pcell.cell_index(), t))
     
-def drawFeeds(self, lx, ly, translate = (0,0), infill = True):
+def drawOuter(self, innderW, innerH):
+
+
+    
+    inner_translation = (,)
+    return inner_translation
+    
+def drawFeeds(self, lx, ly, translate = (0,0)):
     #calculate box
     tx = translate[0]
     ty = translate[1]
       
     dbu = self.layout.dbu
     # This is the main part of the implementation: create the layout
+    
     #draw the feeds
+    
+    
+    
+    
+    if outer:
+        
+      
     
     drawCPW(self, self.wg, self.wl, self.lf, (tx,ty), self.lp)
     drawCPW(self, self.wg, self.wl, self.lf, (self.lf+self.wg*2+lx+tx,0+ty), self.lp)
     
-    if infill:
-      #fill in missing ground planes
-      tg = ([self.lf+tx, self.wg*8+self.wl*3.5+ly/2+ty],[self.lf+self.wg*2+lx+tx, self.wl*7+self.wg*14+ty])
-      self.cell.shapes(self.lp).insert(pya.Box(tg[0][0]/dbu,tg[0][1]/dbu,tg[1][0]/dbu,tg[1][1]/dbu))
-      #bottom plane
-      bg = ([self.lf+tx, 0+ty],[self.lf+self.wg*2+lx+tx, self.wg*6+self.wl*3.5-ly/2+ty])
-      self.cell.shapes(self.lp).insert(pya.Box(bg[0][0]/dbu,bg[0][1]/dbu,bg[1][0]/dbu,bg[1][1]/dbu))
+    
+    #fill in missing ground planes
+    tg = ([self.lf+tx, self.wg*8+self.wl*3.5+ly/2+ty],[self.lf+self.wg*2+lx+tx, self.wl*7+self.wg*14+ty])
+    self.cell.shapes(self.lp).insert(pya.Box(tg[0][0]/dbu,tg[0][1]/dbu,tg[1][0]/dbu,tg[1][1]/dbu))
+    #bottom plane
+    bg = ([self.lf+tx, 0+ty],[self.lf+self.wg*2+lx+tx, self.wg*6+self.wl*3.5-ly/2+ty])
+    self.cell.shapes(self.lp).insert(pya.Box(bg[0][0]/dbu,bg[0][1]/dbu,bg[1][0]/dbu,bg[1][1]/dbu))
     
     #calculateCentrePosition
     outputs = {
@@ -130,7 +147,8 @@ class CPW(pya.PCellDeclarationHelper):
     self.param("ll", self.TypeDouble, "Length", default=100)
     self.param("wl", self.TypeDouble, "Line Width", default=9.03)
     self.param("wg", self.TypeDouble, "Gap Width", default=14)
-   
+    
+    
 
     #set whether the feeds will be inset or extended off the end of the capacitor or off
     self.param("feedmode", self.TypeString, "FeedMode", default="Off", choices = (["Off","off"],["Inset", "inset"],["Extend","extend"]))
@@ -190,7 +208,7 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     self.param("mode", self.TypeString, "Capacitor Mode", 
                 default="series", choices=(["Series", "series"],["Shunt","shunt"]))
 
-    #Parameters for the CPW capacitor
+    #Parameters for the MIM capacitor
     self.param("lx", self.TypeDouble, "Top Plate Length X", default=20)
     self.param("ly", self.TypeDouble, "Top Plate Length Y", default=20)
     self.param("pd", self.TypeDouble, "Dielectric padding", default=4)
@@ -321,7 +339,7 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.param("wg", self.TypeDouble, "Waveguide gap width", default=14)
     #set overlap for top plate and bottom plate metal layers
     self.param("lo", self.TypeDouble, "Metal overlap", default=2)
-    #set shunt to ground width
+    #Set outer feed parameters
     
     #text parameters
     self.param("textLayer", self.TypeLayer, "Text Layer", default=pya.LayerInfo(1, 0))
