@@ -28,12 +28,18 @@ NOTE: after changing the code, the macro needs to be rerun to install the new
 implementation. The macro is also set to "auto run" to install the PCell 
 when KLayout is run.
 """
-def drawCPW(self, wg, wl, length, pos, layer):
+def drawCPW(self, wg, wl, length, pos, layer, custom_height = 0):
     dbu = self.layout.dbu
 
     gg = 2*wg+wl
-    #calculate the groundwidth to 3 times the line + gaps
-    gw = 3*gg
+    #calculate the groundwidth to ground padding times the line + gaps
+    gw = self.gp*gg
+    
+    height = gw*2+gg
+    #calculate ground width for a custom height
+    if custom_height &gt; gg:
+      gw = (custom_height-gg)/2
+      height = custom_height
     
     #create the 3 rectangles that make up part of the tline
     #calculate top ground
@@ -50,6 +56,8 @@ def drawCPW(self, wg, wl, length, pos, layer):
     bg = ([pos[0]/dbu,pos[1]/dbu],[(pos[0]+length)/dbu,(pos[1]+gw)/dbu])
     #draw bottom ground
     self.cell.shapes(layer).insert(pya.Box(bg[0][0],bg[0][1],bg[1][0],bg[1][1]))
+    
+    return height, gw
     
     
     
@@ -72,12 +80,51 @@ def drawText(self, label, text_size = 16, centre_pos = (0.0,0.0)):
     t = pya.Trans(pya.Trans.R0, centreVector[0], centreVector[1])  # No rotation, place at (0,0)
     self.cell.insert(pya.CellInstArray(text_pcell.cell_index(), t))
     
-def drawOuter(self, innderW, innerH):
-
-
+def drawOuter(self, innerW, innerH, extended = True):
+    dbu = self.layout.dbu
     
-    inner_translation = (,)
-    return inner_translation
+    if self.feedMode == "extended":
+      extended = True
+      
+    if self.feedMode == "small":
+      extended = False
+    
+    xpoints = [self.lf2, self.lf2+self.rl, self.lf2+self.rl+innerW, self.lf2+self.rl+innerW+self.lf2]
+    
+    if extended:
+      #draw outer feeds
+      gg2 = 2*self.wg2+self.wl2
+      gl2 = self.gp2*gg2
+      outerH = gl2*2+gg2
+      drawCPW(self, self.wg2, self.wl2, self.lf2, (0,0), self.lp, gl2*2+gg2)
+      drawCPW(self, self.wg2, self.wl2, self.lf2, (innerW+2*self.rl+self.lf2,0), self.lp, gl2*2+gg2)
+      
+      
+      inner_translation = (self.lf2+self.rl,(outerH-innerH)/2)
+      
+      #draw ramp
+    else:
+      #draw outer feeds
+      drawCPW(self, self.wg2, self.wl2, self.lf2, (0,0), self.lp, innerH)
+      height, gw2 = drawCPW(self, self.wg2, self.wl2, self.lf2, (innerW+2*self.rl+self.lf2,0), self.lp, innerH)
+      inner_translation = (self.lf2+self.rl,0)
+      
+      ggin = self.wl+self.wg*2
+      gwin = ggin*self.gp
+      #draw ramps
+      ramp1 = [
+      (xpoints[0],gw2+self.wg2+self.wl2),
+      (xpoints[1],gwin+self.wg+self.wl),
+      (xpoints[1],gwin+self.wg),
+      (xpoints[0],gw2+self.wg2)
+      ]
+      
+      r1_p = [pya.Point(x/dbu,y/dbu) for x,y in ramp1]
+      self.cell.shapes(self.lp).insert(pya.Polygon(r1_p))
+      
+      
+    
+    return inner_translation[0], inner_translation[1]
     
 def drawFeeds(self, lx, ly, translate = (0,0)):
     #calculate box
@@ -88,31 +135,33 @@ def drawFeeds(self, lx, ly, translate = (0,0)):
     # This is the main part of the implementation: create the layout
     
     #draw the feeds
+    innerW = self.lf+self.wg*2+lx+tx+self.lf
+    innerH = (self.wg*2)*(self.gp*2+1)+self.wl*(self.gp*2+1)
+    gg = 2*self.wg + self.wl
+    gh = self.gp*gg
     
+    #draw outer feeds and translate inner feeds
+    if self.feedType == "stepped":
+      tx, ty = drawOuter(self, innerW, innerH)
     
-    
-    
-    if outer:
         
-      
-    
     drawCPW(self, self.wg, self.wl, self.lf, (tx,ty), self.lp)
     drawCPW(self, self.wg, self.wl, self.lf, (self.lf+self.wg*2+lx+tx,0+ty), self.lp)
     
     
     #fill in missing ground planes
-    tg = ([self.lf+tx, self.wg*8+self.wl*3.5+ly/2+ty],[self.lf+self.wg*2+lx+tx, self.wl*7+self.wg*14+ty])
+    tg = ([self.lf+tx, gh+self.wg*2+self.wl/2+ly/2+ty],[self.lf+self.wg*2+lx+tx, innerH+ty])
     self.cell.shapes(self.lp).insert(pya.Box(tg[0][0]/dbu,tg[0][1]/dbu,tg[1][0]/dbu,tg[1][1]/dbu))
+    
     #bottom plane
-    bg = ([self.lf+tx, 0+ty],[self.lf+self.wg*2+lx+tx, self.wg*6+self.wl*3.5-ly/2+ty])
+    bg = ([self.lf+tx, 0+ty],[self.lf+self.wg*2+lx+tx, gh+self.wg+self.wl/2-(ly/2+self.wg)+ty])
     self.cell.shapes(self.lp).insert(pya.Box(bg[0][0]/dbu,bg[0][1]/dbu,bg[1][0]/dbu,bg[1][1]/dbu))
     
     #calculateCentrePosition
     outputs = {
     "centrex" : self.lf+self.wg+lx/2+tx,
-    "centrey" : self.wl*3.5+self.wg*7+ty,
-    "feedWidth" : self.lf*2+self.wg*2+lx,
-    "feedHeight" : self.wl*7+self.wg*14+ty}
+    "centrey" : innerH/2+ty,
+    }
     return outputs
     
 def drawFeedRamp():
@@ -147,6 +196,7 @@ class CPW(pya.PCellDeclarationHelper):
     self.param("ll", self.TypeDouble, "Length", default=100)
     self.param("wl", self.TypeDouble, "Line Width", default=9.03)
     self.param("wg", self.TypeDouble, "Gap Width", default=14)
+    self.param("gp", self.TypeDouble, "Ground width = x times ground-ground gap, x = ", default=3)
     
     
 
@@ -220,6 +270,24 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     self.param("lf", self.TypeDouble, "Feed length", default=20)
     self.param("wl", self.TypeDouble, "Feed Line thickness", default=9)
     self.param("wg", self.TypeDouble, "Waveguide gap width", default=14)
+    self.param("gp", self.TypeDouble, "Ground width = x times ground-ground gap, x = ", default=3)
+    
+    
+    #Set outer feed parameters
+    self.param("lf2", self.TypeDouble, "Outer Feed length", default=20)
+    self.param("wl2", self.TypeDouble, "Outer Feed Line thickness", default=9)
+    self.param("wg2", self.TypeDouble, "Outer Waveguide gap width", default=14)
+    self.param("rl", self.TypeDouble, "RampLength", default=20)
+    self.param("gp2", self.TypeDouble, "Outer Ground width = x times ground-ground gap, x = ", default=3)
+    
+    #feed options 
+    self.param("feedType", self.TypeString, "Feed type", 
+                default="series", choices=(["Single", "single"],["Stepped","stepped"]))
+                
+    self.param("feedMode", self.TypeString, "Outer Feed Size", 
+                default="series", choices=(["Extended", "extended"],["Small","small"]))
+    
+    
     #set overlap for top plate and bottom plate metal layers
     self.param("lo", self.TypeDouble, "Metal overlap", default=2)
     #set shunt to ground width
@@ -337,9 +405,24 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.param("lf", self.TypeDouble, "Feed length", default=20)
     self.param("wl", self.TypeDouble, "Feed Line thickness", default=9)
     self.param("wg", self.TypeDouble, "Waveguide gap width", default=14)
+    self.param("gp", self.TypeDouble, "Ground width = x times ground-ground gap, x = ", default=3)
+ 
+    #Set outer feed parameters
+    self.param("lf2", self.TypeDouble, "Outer Feed length", default=20)
+    self.param("wl2", self.TypeDouble, "Outer Feed Line thickness", default=9)
+    self.param("wg2", self.TypeDouble, "Outer Waveguide gap width", default=14)
+    self.param("rl", self.TypeDouble, "RampLength", default=20)
+    self.param("gp2", self.TypeDouble, "Outer ground width = x times ground-ground gap, x = ", default=3)
+    
+    #Feed mode
+    self.param("feedType", self.TypeString, "Feed mode", 
+                default="series", choices=(["Single", "single"],["Stepped","stepped"]))
+                
+    self.param("feedMode", self.TypeString, "Outer Feed Size", 
+                default="series", choices=(["Extended", "extended"],["Small","small"]))
+
     #set overlap for top plate and bottom plate metal layers
     self.param("lo", self.TypeDouble, "Metal overlap", default=2)
-    #Set outer feed parameters
     
     #text parameters
     self.param("textLayer", self.TypeLayer, "Text Layer", default=pya.LayerInfo(1, 0))
@@ -410,7 +493,7 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
       #This is what you get when you combine amateur maths with amateur coding and a lot of motivation
       turnStart, path_length = self.add_one_turn(turnStart, dout, path_length, w, s)
     
-    tunnel_feed_start = self.spiralPoints[-1][0]-(w/2+self.pb/2)
+    tunnel_feed_start = self.spiralPoints[-1][0]-(w/2+self.pb)
     tunnel_feed_end = cx+self.wg+self.dout/2+self.lo
     #draw tunneling feed
     feed_points = [pya.Point(tunnel_feed_start/dbu, cy/dbu), pya.Point(tunnel_feed_end/dbu, cy/dbu)]
