@@ -87,7 +87,7 @@ def drawOuter(self, innerW, innerH, extended = True):
     if self.feedMode == "small":
       extended = False
     
-    xpoints = [self.lf2, self.lf2+self.rl, self.lf2+self.rl+innerW, self.lf2+self.rl+innerW+self.lf2]
+    xpoints = [self.lf2, self.lf2+self.rl, self.lf2+self.rl+innerW, self.lf2+self.rl+innerW+self.rl]
 
     
     if extended:
@@ -162,7 +162,6 @@ def drawOuter(self, innerW, innerH, extended = True):
     ]
     ]
       
-      
     #draw ramps
     for i in ramps:
       
@@ -213,9 +212,6 @@ def drawFeeds(self, lx, ly, translate = (0,0)):
     }
     return outputs
     
-def drawFeedRamp():
-  ...
-  
 
 class CPW(pya.PCellDeclarationHelper):
   """
@@ -229,7 +225,7 @@ class CPW(pya.PCellDeclarationHelper):
 
     # declare the parameters
     #layer 
-    self.param("layer", self.TypeLayer, "Layer", default=pya.LayerInfo(13, 0))
+    self.param("lp", self.TypeLayer, "Layer", default=pya.LayerInfo(13, 0))
     #text label layer
     self.param("textLayer", self.TypeLayer, "Text Layer", default=pya.LayerInfo(1, 0))
     #set custom string dialogue
@@ -255,8 +251,10 @@ class CPW(pya.PCellDeclarationHelper):
     self.param("gp2", self.TypeDouble, "Outer Ground width = x times ground-ground gap, x = ", default=3)
 
     #set whether the feeds will be inset or extended off the end of the capacitor or off
-    self.param("feedmode", self.TypeString, "FeedMode", default="Off", choices = (["Off","off"],["Inset", "inset"],["Extend","extend"]))
+    self.param("steppedFeed", self.TypeString, "steppedFeed", default="Off", choices = (["Off","off"],["Inset", "inset"],["Extend","extend"]))
     
+    self.param("feedMode", self.TypeString, "Outer Feed Size", 
+                default="series", choices=(["Extended", "extended"],["Small","small"]))
 
   def display_text_impl(self):
     # Provide a descriptive text for the cell
@@ -269,20 +267,41 @@ class CPW(pya.PCellDeclarationHelper):
     #switch case for the feed modes:
     length = self.ll #bug with initiation having feedmode
     #print(self.feedmode)
-    if self.feedmode == "off":
+    gg = self.wl+2*self.wg
+    gw = self.gp*gg
+    innerH = gw*2+gg
+    print(self.feedMode)
+    x = 0
+    mode = "off"
+    
+    if self.steppedFeed == "off":
+      mode = "off"
+    if self.steppedFeed == "inset":
+      mode = "inset"
+    if self.steppedFeed == "extend":
+      mode = "extend"
+    
+    
+    
+    if mode == "off" or self.feedMode == "Off":
       length = self.ll
-    if self.feedmode == "inset":
-      ...
-    if self.feedmode == "extend":
-      ...
+      drawCPW(self, self.wg, self.wl, length, [0,0], self.lp)
+      x, y = 0,0
+    elif mode == "inset":
+      length = self.ll-2*self.lf2
+      x, y = drawOuter(self, length, innerH)
+      drawCPW(self, self.wg, self.wl, length, [x,y], self.lp)
+    elif mode == "extend":
+      length = self.ll
+      x, y = drawOuter(self, length, innerH)
+      drawCPW(self, self.wg, self.wl, length, [x,y], self.lp)
 
-    wg = self.wg
-    wl = self.wl
+
     #calculate the total gap between the grounds
-    drawCPW(self, wg, wl, length, [0,0], self.layer)
+
     
     #calculate label centre position
-    textPos = (length/2, -(self.textPadding+self.textSize/2))
+    textPos = (length/2+x, -(self.textPadding+self.textSize/2))
     
     
     #draw the device label
@@ -421,7 +440,7 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     
     #estimate capacitance
     e0 = 8.85418782e-12
-    C = (self.er*e0*self.lx*self.ly)*1e-12/(self.gap*1e-9)*1e12
+    C = (self.er*e0*self.lx*self.ly)*dbu**2*1e-6/(self.gap*1e-9)*1e12
     
     #draw the device label
     if self.textString == "":
@@ -618,9 +637,7 @@ class MyLib(pya.Library):
   
     # Set the description
     self.description = "GaN_PDK_PASSIVES"
-    
     # Create the PCell declarations
-
     # That would be the place to put in more PCells ...
     self.layout().register_pcell("CPW", CPW())
     self.layout().register_pcell("MIM_Capacitor", MIM_Capacitor())
