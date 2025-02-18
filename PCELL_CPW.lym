@@ -59,9 +59,6 @@ def drawCPW(self, wg, wl, length, pos, layer, custom_height = 0):
     
     return height, gw
     
-    
-    
-    
 def drawText(self, label, text_size = 16, centre_pos = (0.0,0.0)):
     dbu = self.layout.dbu  #Database unit scale
                 
@@ -83,6 +80,7 @@ def drawText(self, label, text_size = 16, centre_pos = (0.0,0.0)):
 def drawOuter(self, innerW, innerH, extended = True):
     dbu = self.layout.dbu
     
+    #feedMode is None by default hence the if statements...
     if self.feedMode == "extended":
       extended = True
       
@@ -90,6 +88,7 @@ def drawOuter(self, innerW, innerH, extended = True):
       extended = False
     
     xpoints = [self.lf2, self.lf2+self.rl, self.lf2+self.rl+innerW, self.lf2+self.rl+innerW+self.lf2]
+
     
     if extended:
       #draw outer feeds
@@ -99,28 +98,78 @@ def drawOuter(self, innerW, innerH, extended = True):
       drawCPW(self, self.wg2, self.wl2, self.lf2, (0,0), self.lp, gl2*2+gg2)
       drawCPW(self, self.wg2, self.wl2, self.lf2, (innerW+2*self.rl+self.lf2,0), self.lp, gl2*2+gg2)
       
+      #fill in gaps
+      #top box
+      tx, ty, bx, by = [self.lf2+self.rl, outerH, innerW+self.rl+self.lf2, outerH-(outerH-innerH)/2]
+      self.cell.shapes(self.lp).insert(pya.Box(tx/dbu,ty/dbu,bx/dbu,by/dbu))
+      
+      #bottom box
+      tx, ty, bx, by = [self.lf2+self.rl, (outerH-innerH)/2, innerW+self.rl+self.lf2, 0]
+      self.cell.shapes(self.lp).insert(pya.Box(tx/dbu,ty/dbu,bx/dbu,by/dbu))
+      
+      ggin = self.wl+self.wg*2
+      gwin = ggin*self.gp+(outerH-innerH)/2
       
       inner_translation = (self.lf2+self.rl,(outerH-innerH)/2)
       
+      gw2 = gl2
       #draw ramp
     else:
       #draw outer feeds
       drawCPW(self, self.wg2, self.wl2, self.lf2, (0,0), self.lp, innerH)
-      height, gw2 = drawCPW(self, self.wg2, self.wl2, self.lf2, (innerW+2*self.rl+self.lf2,0), self.lp, innerH)
+      outerH, gw2 = drawCPW(self, self.wg2, self.wl2, self.lf2, (innerW+2*self.rl+self.lf2,0), self.lp, innerH)
       inner_translation = (self.lf2+self.rl,0)
       
       ggin = self.wl+self.wg*2
       gwin = ggin*self.gp
-      #draw ramps
-      ramp1 = [
-      (xpoints[0],gw2+self.wg2+self.wl2),
-      (xpoints[1],gwin+self.wg+self.wl),
-      (xpoints[1],gwin+self.wg),
-      (xpoints[0],gw2+self.wg2)
-      ]
+    
+    #calculate ramps
+    ramps = [[
+    (xpoints[0],gw2+self.wg2+self.wl2),
+    (xpoints[1],gwin+self.wg+self.wl),
+    (xpoints[1],gwin+self.wg),
+    (xpoints[0],gw2+self.wg2)
+    ],
+    [
+    (xpoints[3],gw2+self.wg2+self.wl2),
+    (xpoints[2],gwin+self.wg+self.wl),
+    (xpoints[2],gwin+self.wg),
+    (xpoints[3],gw2+self.wg2)
+    ],
+    [
+    (xpoints[0],0),
+    (xpoints[1],0),
+    (xpoints[1],gwin),
+    (xpoints[0],gw2)
+    ], 
+    [
+    (xpoints[0],gw2+self.wg2*2+self.wl2),
+    (xpoints[1],gwin+self.wg*2+self.wl),
+    (xpoints[1],outerH),
+    (xpoints[0],outerH)
+    ],
+    [
+    (xpoints[3],0),
+    (xpoints[2],0),
+    (xpoints[2],gwin),
+    (xpoints[3],gw2)
+    ], 
+    [
+    (xpoints[3],gw2+self.wg2*2+self.wl2),
+    (xpoints[2],gwin+self.wg*2+self.wl),
+    (xpoints[2],outerH),
+    (xpoints[3],outerH)
+    ]
+    ]
       
-      r1_p = [pya.Point(x/dbu,y/dbu) for x,y in ramp1]
-      self.cell.shapes(self.lp).insert(pya.Polygon(r1_p))
+      
+    #draw ramps
+    for i in ramps:
+      
+      #points object with database units scaling
+      ramp_points = [pya.Point(x/dbu,y/dbu) for x,y in i]
+      self.cell.shapes(self.lp).insert(pya.Polygon(ramp_points))
+
       
       
     
@@ -143,7 +192,7 @@ def drawFeeds(self, lx, ly, translate = (0,0)):
     #draw outer feeds and translate inner feeds
     if self.feedType == "stepped":
       tx, ty = drawOuter(self, innerW, innerH)
-    
+      #I can't believe it only took 1 extra line of code to get this to work at least my code was somewhat extendable haha
         
     drawCPW(self, self.wg, self.wl, self.lf, (tx,ty), self.lp)
     drawCPW(self, self.wg, self.wl, self.lf, (self.lf+self.wg*2+lx+tx,0+ty), self.lp)
@@ -198,7 +247,12 @@ class CPW(pya.PCellDeclarationHelper):
     self.param("wg", self.TypeDouble, "Gap Width", default=14)
     self.param("gp", self.TypeDouble, "Ground width = x times ground-ground gap, x = ", default=3)
     
-    
+    #outer feed parameters
+    self.param("lf2", self.TypeDouble, "Outer Feed length", default=20)
+    self.param("wl2", self.TypeDouble, "Outer Feed Line thickness", default=9)
+    self.param("wg2", self.TypeDouble, "Outer Waveguide gap width", default=14)
+    self.param("rl", self.TypeDouble, "RampLength", default=20)
+    self.param("gp2", self.TypeDouble, "Outer Ground width = x times ground-ground gap, x = ", default=3)
 
     #set whether the feeds will be inset or extended off the end of the capacitor or off
     self.param("feedmode", self.TypeString, "FeedMode", default="Off", choices = (["Off","off"],["Inset", "inset"],["Extend","extend"]))
@@ -392,7 +446,7 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.param("ld", self.TypeLayer, "Dielectric Layer", default=pya.LayerInfo(10, 0))
     self.param("lb", self.TypeLayer, "Bottom Plate Layer", default=pya.LayerInfo(3, 0))
      
-    #Parameters for the CPW capacitor
+    #Parameters for the CPW inductor
     self.param("nt", self.TypeDouble, "Number of Turns", default=3)
     self.param("dout", self.TypeDouble, "Outder Diameter", default=50)
     self.param("din", self.TypeDouble, "Inner Diameter", default=18)
@@ -400,6 +454,10 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.param("s", self.TypeDouble, "Gap between coils (zero for auto)", default=1)
     self.param("pd", self.TypeDouble, "Dielectric padding", default=4)
     self.param("pb", self.TypeDouble, "Bottom plate padding", default=0)
+    
+    #SiN layer modes
+    self.param("dielectric", self.TypeString, "Dielectric Mode", 
+            default="series", choices=(["Patch", "patch"],["Via","via"]))
     
     #parameters for the feeds
     self.param("lf", self.TypeDouble, "Feed length", default=20)
@@ -469,15 +527,16 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     nt = self.nt
     w = self.w
     print(w)
-    s = (((dout-din)/2)-(nt)*w)/(nt-1)
-    if nt &lt;= 1:
+    if nt &gt; 1:
+      s = (((dout-din)/2)-(nt)*w)/(nt-1)
+    if nt == 1: #cases to override S are avoiding divide by zero and w as dependent variable 
       s = self.s
-    if self.s != 0: #calculating w and s (width and spacing of the spiral line)
+    elif self.s != 0: #calculating w and s (width and spacing of the spiral line)
       s = self.s #this was an annoying bug to fix fuck me (I had this line after calculating w)
       w = (((dout-din)/2)-(nt-1)*s)/nt
       
       
-      #self.w = w #will test how this behaves later
+      #self.w = w #will test how this behaves later #better leave it because w is good enough ;)
     
     feed_start = [cx-self.wg-self.dout/2, cy]
     self.spiralPoints.append(feed_start)
@@ -495,6 +554,7 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     
     tunnel_feed_start = self.spiralPoints[-1][0]-(w/2+self.pb)
     tunnel_feed_end = cx+self.wg+self.dout/2+self.lo
+    
     #draw tunneling feed
     feed_points = [pya.Point(tunnel_feed_start/dbu, cy/dbu), pya.Point(tunnel_feed_end/dbu, cy/dbu)]
     self.cell.shapes(self.lb).insert(pya.Path(feed_points, (w+self.pb*2)/dbu))
@@ -529,13 +589,22 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     
     #generate the spiral (see the function)
     self.generate_spiral((centrex, centrey))
-    
+    print(dbu)
     
     textPos = (centrex, -(self.textPadding+self.textSize/2))
-    L = 1.0
+    dout = self.dout*dbu*1e-3 #normalised units must be in mm because converting to dbu here is multiplying by 1e-3
+    din = self.din*dbu*1e-3
+    print(self.din)
+    rho = (dout-din)/(dout+din)
+    davg = (dout + din)/2
+    k1 = 2.34#constants for a square inductor
+    k2 = 2.75
+    u0 = 1.25663706e-6 #permeability of free space
+    L = (self.nt**2 * u0 * davg * k1)/(1+ rho * k2)
+    print(L/1e-9)
     #draw the device label
     if self.textString == "":
-      drawText(self, "Inductor " + "{:.3f}".format(L) + " nH ",self.textSize, centre_pos = textPos)
+      drawText(self, "Inductor " + "{:.3f}".format(L/1e-9) + " nH ",self.textSize, centre_pos = textPos)
     else:
       drawText(self, self.textString, self.textSize, textPos)
       
