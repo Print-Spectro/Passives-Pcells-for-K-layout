@@ -28,6 +28,7 @@ NOTE: after changing the code, the macro needs to be rerun to install the new
 implementation. The macro is also set to "auto run" to install the PCell 
 when KLayout is run.
 """
+
 def drawCPW(self, wg, wl, length, pos, layer, custom_height = 0):
     dbu = self.layout.dbu
 
@@ -168,9 +169,6 @@ def drawOuter(self, innerW, innerH, extended = True):
       #points object with database units scaling
       ramp_points = [pya.Point(x/dbu,y/dbu) for x,y in i]
       self.cell.shapes(self.lp).insert(pya.Polygon(ramp_points))
-
-      
-      
     
     return inner_translation[0], inner_translation[1]
     
@@ -228,13 +226,13 @@ class CPW(pya.PCellDeclarationHelper):
     self.param("lp", self.TypeLayer, "Layer", default=pya.LayerInfo(13, 0))
     #text label layer
     self.param("textLayer", self.TypeLayer, "Text Layer", default=pya.LayerInfo(1, 0))
-    #set custom string dialogue
+    
     self.param("textString", self.TypeString, "Custom label (auto generated if empty)", default="")
-    #set text size
+    
     self.param("textSize", self.TypeDouble, "Font Size", default=16)
-    #target impedance
+    
     self.param("textPadding", self.TypeDouble, "Font Padding", default=10)
-    #target impedance
+    #set impedance to be displayed in the auto-generated text
     self.param("impedance", self.TypeDouble, "Characteristic Impedance", default=50)
     
     #feed parameters
@@ -270,7 +268,7 @@ class CPW(pya.PCellDeclarationHelper):
     gg = self.wl+2*self.wg
     gw = self.gp*gg
     innerH = gw*2+gg
-    print(self.feedMode)
+    #print(self.feedMode)
     x = 0
     mode = "off"
     
@@ -428,11 +426,12 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
       
       #draw ground feeds
       #draw top feed
-      tFeed = ([centrex-self.sw,centrey+self.ly/2+self.pb],[centrex+self.sw,centrey+self.ly/2+self.wg+self.lo])
+      tFeed = ([centrex-self.sw/2,centrey+self.ly/2+self.pb],[centrex+self.sw/2,centrey+self.ly/2+self.wg+self.lo])
       self.cell.shapes(self.lb).insert(pya.Box((tFeed[0][0])/dbu,(tFeed[0][1])/dbu,(tFeed[1][0])/dbu,(tFeed[1][1])/dbu))
       
       #draw bottom feed
-      bFeed = ([centrex-self.sw,centrey-self.ly/2-self.pb],[centrex+self.sw,centrey-self.wg-self.lo-self.ly/2])
+      bFeed = ([centrex-self.sw/2,c
+entrey-self.ly/2-self.pb],[centrex+self.sw/2,centrey-self.wg-self.lo-self.ly/2])
       self.cell.shapes(self.lb).insert(pya.Box((bFeed[0][0])/dbu,(bFeed[0][1])/dbu,(bFeed[1][0])/dbu,(bFeed[1][1])/dbu))
     
     #calculate label centre position
@@ -440,7 +439,10 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     
     #estimate capacitance
     e0 = 8.85418782e-12
-    C = (self.er*e0*self.lx*self.ly)*dbu**2*1e-6/(self.gap*1e-9)*1e12
+    feed_overlap = self.wl*self.pb
+    plate_area = self.lx*self.ly
+    total_area = feed_overlap+plate_area
+    C = (self.er*e0*total_area)*dbu**2*1e-6/(self.gap*1e-9)*1e12
     
     #draw the device label
     if self.textString == "":
@@ -517,7 +519,7 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
 
   def display_text_impl(self):
     # Provide a descriptive text for the cell
-    return "Spiral Inductor(Dout=" + str(self.dout) + ",Din=" + str(self.din) + ")"
+    return "Spiral Inductor(Dout=" + str(self.dout) + ",Din=" + str(self.din) + "w = " + str(self.w) + "s = " + str(self.s) +")"
     
   def add_one_turn(self, start, dout, path_length, width, spacing):
     pl = path_length
@@ -545,7 +547,7 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     din = self.din
     nt = self.nt
     w = self.w
-    print(w)
+    #print(w)
     if nt &gt; 1:
       s = (((dout-din)/2)-(nt)*w)/(nt-1)
     if nt == 1: #cases to override S are avoiding divide by zero and w as dependent variable 
@@ -608,19 +610,19 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     
     #generate the spiral (see the function)
     self.generate_spiral((centrex, centrey))
-    print(dbu)
+    #print(dbu)
     
     textPos = (centrex, -(self.textPadding+self.textSize/2))
     dout = self.dout*dbu*1e-3 #normalised units must be in mm because converting to dbu here is multiplying by 1e-3
     din = self.din*dbu*1e-3
-    print(self.din)
+    #print(self.din)
     rho = (dout-din)/(dout+din)
     davg = (dout + din)/2
     k1 = 2.34#constants for a square inductor
     k2 = 2.75
     u0 = 1.25663706e-6 #permeability of free space
     L = (self.nt**2 * u0 * davg * k1)/(1+ rho * k2)
-    print(L/1e-9)
+    #print(L/1e-9)
     #draw the device label
     if self.textString == "":
       drawText(self, "Inductor " + "{:.3f}".format(L/1e-9) + " nH ",self.textSize, centre_pos = textPos)
