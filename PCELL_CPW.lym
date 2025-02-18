@@ -100,13 +100,14 @@ def drawOuter(self, innerW, innerH, extended = True):
       drawCPW(self, self.wg2, self.wl2, self.lf2, (innerW+2*self.rl+self.lf2,0), self.lp, gl2*2+gg2)
       
       #fill in gaps
+      if outerH &gt; innerH:
       #top box
-      tx, ty, bx, by = [self.lf2+self.rl, outerH, innerW+self.rl+self.lf2, outerH-(outerH-innerH)/2]
-      self.cell.shapes(self.lp).insert(pya.Box(tx/dbu,ty/dbu,bx/dbu,by/dbu))
-      
-      #bottom box
-      tx, ty, bx, by = [self.lf2+self.rl, (outerH-innerH)/2, innerW+self.rl+self.lf2, 0]
-      self.cell.shapes(self.lp).insert(pya.Box(tx/dbu,ty/dbu,bx/dbu,by/dbu))
+        tx, ty, bx, by = [self.lf2+self.rl, outerH, innerW+self.rl+self.lf2, outerH-(outerH-innerH)/2]
+        self.cell.shapes(self.lp).insert(pya.Box(tx/dbu,ty/dbu,bx/dbu,by/dbu))
+        
+        #bottom box
+        tx, ty, bx, by = [self.lf2+self.rl, (outerH-innerH)/2, innerW+self.rl+self.lf2, 0]
+        self.cell.shapes(self.lp).insert(pya.Box(tx/dbu,ty/dbu,bx/dbu,by/dbu))
       
       ggin = self.wl+self.wg*2
       gwin = ggin*self.gp+(outerH-innerH)/2
@@ -325,9 +326,7 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     self.param("ld", self.TypeLayer, "DielectricLayer", default=pya.LayerInfo(10, 0))
     self.param("lb", self.TypeLayer, "BottomPlateLayer", default=pya.LayerInfo(3, 0))
     
-    #Two capacitor types: Series and shunt 
-    self.param("mode", self.TypeString, "Capacitor Mode", 
-                default="series", choices=(["Series", "series"],["Shunt","shunt"]))
+
 
     #Parameters for the MIM capacitor
     self.param("lx", self.TypeDouble, "Top Plate Length X", default=20)
@@ -337,19 +336,20 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     self.param("gap", self.TypeDouble, "Dielectric thickness nm", default=160)
     self.param("er", self.TypeDouble, "Relative Permittivity", default=7.0)
     
+    #Two capacitor types: Series and shunt 
+    self.param("mode", self.TypeString, "Capacitor Mode", 
+                default="series", choices=(["Series", "series"],["Shunt","shunt"]))
+                
+    #set overlap for top plate and bottom plate metal layers
+    self.param("lo", self.TypeDouble, "Metal overlap", default=2)
+    #set shunt to ground width
+    self.param("sw", self.TypeDouble, "Shunt width", default=10)
+    
     #parameters for the feeds
     self.param("lf", self.TypeDouble, "Feed length", default=20)
     self.param("wl", self.TypeDouble, "Feed Line thickness", default=9)
     self.param("wg", self.TypeDouble, "Waveguide gap width", default=14)
     self.param("gp", self.TypeDouble, "Ground width = x times ground-ground gap, x = ", default=3)
-    
-    
-    #Set outer feed parameters
-    self.param("lf2", self.TypeDouble, "Outer Feed length", default=20)
-    self.param("wl2", self.TypeDouble, "Outer Feed Line thickness", default=9)
-    self.param("wg2", self.TypeDouble, "Outer Waveguide gap width", default=14)
-    self.param("rl", self.TypeDouble, "RampLength", default=20)
-    self.param("gp2", self.TypeDouble, "Outer Ground width = x times ground-ground gap, x = ", default=3)
     
     #feed options 
     self.param("feedType", self.TypeString, "Feed type", 
@@ -358,11 +358,15 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     self.param("feedMode", self.TypeString, "Outer Feed Size", 
                 default="series", choices=(["Extended", "extended"],["Small","small"]))
     
+    #Set outer feed parameters
+    self.param("lf2", self.TypeDouble, "Outer Feed length", default=20)
+    self.param("wl2", self.TypeDouble, "Outer Feed Line thickness", default=9)
+    self.param("wg2", self.TypeDouble, "Outer Waveguide gap width", default=14)
+    self.param("rl", self.TypeDouble, "RampLength", default=20)
+    self.param("gp2", self.TypeDouble, "Outer Ground width = x times ground-ground gap, x = ", default=3)
     
-    #set overlap for top plate and bottom plate metal layers
-    self.param("lo", self.TypeDouble, "Metal overlap", default=2)
-    #set shunt to ground width
-    self.param("sw", self.TypeDouble, "Shunt width", default=10)
+    
+
     
     #text parameters
     self.param("textLayer", self.TypeLayer, "Text Layer", default=pya.LayerInfo(1, 0))
