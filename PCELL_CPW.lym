@@ -434,8 +434,7 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
       self.cell.shapes(self.lb).insert(pya.Box((tFeed[0][0])/dbu,(tFeed[0][1])/dbu,(tFeed[1][0])/dbu,(tFeed[1][1])/dbu))
       
       #draw bottom feed
-      bFeed = ([centrex-self.sw/2,c
-entrey-self.ly/2-self.pb],[centrex+self.sw/2,centrey-self.wg-self.lo-self.ly/2])
+      bFeed = ([centrex-self.sw/2,centrey-self.ly/2-self.pb],[centrex+self.sw/2,centrey-self.wg-self.lo-self.ly/2])
       self.cell.shapes(self.lb).insert(pya.Box((bFeed[0][0])/dbu,(bFeed[0][1])/dbu,(bFeed[1][0])/dbu,(bFeed[1][1])/dbu))
     
     #calculate label centre position
