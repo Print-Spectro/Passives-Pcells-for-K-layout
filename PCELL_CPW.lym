@@ -225,27 +225,25 @@ class CPW(pya.PCellDeclarationHelper):
     # declare the parameters
     #layer 
     self.param("lp", self.TypeLayer, "Layer", default=pya.LayerInfo(13, 0))
-    #text label layer
+    #text label layer properties
+    self.param("showText", self.TypeBoolean, "Show text", default = True)
     self.param("textLayer", self.TypeLayer, "Text Layer", default=pya.LayerInfo(1, 0))
-    
     self.param("textString", self.TypeString, "Custom label (auto generated if empty)", default="")
-    
     self.param("textSize", self.TypeDouble, "Font Size", default=16)
-    
     self.param("textPadding", self.TypeDouble, "Font Padding", default=10)
     #set impedance to be displayed in the auto-generated text
     self.param("impedance", self.TypeDouble, "Characteristic Impedance", default=50)
     
     #feed parameters
     self.param("ll", self.TypeDouble, "Length", default=100)
-    self.param("wl", self.TypeDouble, "Line Width", default=9.03)
-    self.param("wg", self.TypeDouble, "Gap Width", default=14)
+    self.param("wl", self.TypeDouble, "Line Width", default=14)
+    self.param("wg", self.TypeDouble, "Gap Width", default=9)
     self.param("gp", self.TypeDouble, "Ground width = x times ground-ground gap, x = ", default=3)
     
     #outer feed parameters
-    self.param("lf2", self.TypeDouble, "Outer Feed length", default=20)
-    self.param("wl2", self.TypeDouble, "Outer Feed Line thickness", default=9)
-    self.param("wg2", self.TypeDouble, "Outer Waveguide gap width", default=14)
+    self.param("lf2", self.TypeDouble, "Outer Feed length", default=50)
+    self.param("wl2", self.TypeDouble, "Outer Feed Line thickness", default=20)
+    self.param("wg2", self.TypeDouble, "Outer Waveguide gap width", default=13)
     self.param("rl", self.TypeDouble, "RampLength", default=20)
     self.param("gp2", self.TypeDouble, "Outer Ground width = x times ground-ground gap, x = ", default=3)
 
@@ -304,10 +302,11 @@ class CPW(pya.PCellDeclarationHelper):
     
     
     #draw the device label
-    if self.textString == "":
-      drawText(self, "CPW " + str(self.impedance) + " Ohm " + str(self.ll) + " um",self.textSize, centre_pos = textPos)
-    else:
-      drawText(self, self.textString, self.textSize, textPos)
+    if self.showText:
+      if self.textString == "":
+        drawText(self, "CPW " + str(self.impedance) + " Ohm " + "{:.0f}".format(self.ll) + " um",self.textSize, centre_pos = textPos)
+      else:
+        drawText(self, self.textString, self.textSize, textPos)
 
 class MIM_Capacitor(pya.PCellDeclarationHelper):
   """
@@ -347,8 +346,8 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     
     #parameters for the feeds
     self.param("lf", self.TypeDouble, "Feed length", default=20)
-    self.param("wl", self.TypeDouble, "Feed Line thickness", default=9)
-    self.param("wg", self.TypeDouble, "Waveguide gap width", default=14)
+    self.param("wl", self.TypeDouble, "Feed Line thickness", default=14)
+    self.param("wg", self.TypeDouble, "Waveguide gap width", default=9)
     self.param("gp", self.TypeDouble, "Ground width = x times ground-ground gap, x = ", default=3)
     
     #feed options 
@@ -360,8 +359,8 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     
     #Set outer feed parameters
     self.param("lf2", self.TypeDouble, "Outer Feed length", default=20)
-    self.param("wl2", self.TypeDouble, "Outer Feed Line thickness", default=9)
-    self.param("wg2", self.TypeDouble, "Outer Waveguide gap width", default=14)
+    self.param("wl2", self.TypeDouble, "Outer Feed Line thickness", default=24)
+    self.param("wg2", self.TypeDouble, "Outer Waveguide gap width", default=15.1)
     self.param("rl", self.TypeDouble, "RampLength", default=20)
     self.param("gp2", self.TypeDouble, "Outer Ground width = x times ground-ground gap, x = ", default=3)
     
@@ -448,6 +447,7 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     C = (self.er*e0*total_area)*dbu**2*1e-6/(self.gap*1e-9)*1e12
     
     #draw the device label
+    
     if self.textString == "":
       drawText(self, "MIM CAP " + "{:.3f}".format(C) + " pF ",self.textSize, centre_pos = textPos)
     else:
