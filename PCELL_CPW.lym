@@ -776,11 +776,18 @@ class Interdigitated_Capacitor(pya.PCellDeclarationHelper):
     
     textPos = (centrex, -(self.textPadding+self.textSize/2))
 
-    L = 10e-9
+    er = 11.9 
+    w = self.w*dbu*1e-3 #w in cm
+    l = self.l*dbu*1e-3 #l in cm
+    N = self.nf #number of fingers
+    A1 = 8.85e-12*w
+    A2 = 9.92e-12*w
+
+    C = l/w*(er + 1)*((N-3)*A1 + A2)
     #print(L/1e-9)
     #draw the device label
     if self.textString == "":
-      drawText(self, "I CAP " + "{:.3f}".format(L/1e-9) + " nH ",self.textSize, centre_pos = textPos)
+      drawText(self, "I CAP " + "{:.3f}".format(C*1e15) + " fF ",self.textSize, centre_pos = textPos)
     else:
       drawText(self, self.textString, self.textSize, textPos)     
 
