@@ -310,7 +310,7 @@ class CPW(pya.PCellDeclarationHelper):
 
 class MIM_Capacitor(pya.PCellDeclarationHelper):
   """
-  The PCell declaration for the circle
+  MIM capacitor object 
   """
 
   def __init__(self):
@@ -517,8 +517,7 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     #target impedance
     
     self.spiralPoints = []
-    self.ly=0
-    self.lx=0
+
 
   def display_text_impl(self):
     # Provide a descriptive text for the cell
@@ -601,8 +600,6 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
   
   def produce_impl(self):
     dbu = self.layout.dbu
-    self.ly = self.w
-    self.lx = self.w
     
     self.spiralPoints = []
     # This is the main part of the implementation: create the layout
@@ -631,7 +628,161 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
       drawText(self, "Inductor " + "{:.3f}".format(L/1e-9) + " nH ",self.textSize, centre_pos = textPos)
     else:
       drawText(self, self.textString, self.textSize, textPos)
+
+class Interdigitated_Capacitor(pya.PCellDeclarationHelper):
+  """
+  The PCell for the interdigitated capacitor
+  """
+
+  def __init__(self):
+
+    # Important: initialize the super class
+    super(Interdigitated_Capacitor, self).__init__()
+
+    # declare the parameters
+    
+    #inductor layers
+    self.param("lp", self.TypeLayer, "Bondpad Layer", default=pya.LayerInfo(13, 0))
+
+    #Parameters for the CPW interdigitated capacitor
+    self.param("nf", self.TypeInt, "Number of Fingers", default=5)
+    self.param("w", self.TypeDouble, "Capacitor Vertical Width", default=50)
+    self.param("l", self.TypeDouble, "Finger length", default=50)
+    self.param("t", self.TypeDouble, "Connection Thickness", default=18)
+    self.param("sy", self.TypeDouble, "Vertical Finger Gap", default=1)
+    self.param("sx", self.TypeDouble, "Horisontal Finger Gap", default=4)
+
+    #calculation mode
+    self.param("useFingerWidth", self.TypeBoolean, "Calculate with finger width (ignores vertical width)", default=False)
+    self.param("fw", self.TypeDouble, "Finger Width", default=10)
+    
+    #parameters for the feeds
+    self.param("lf", self.TypeDouble, "Feed length", default=20)
+    self.param("wl", self.TypeDouble, "Feed Line thickness", default=9)
+    self.param("wg", self.TypeDouble, "Waveguide gap width", default=14)
+    self.param("gp", self.TypeDouble, "Ground width = x times ground-ground gap, x = ", default=3)
+    
+    #Set outer feed parameters
+    self.param("lf2", self.TypeDouble, "Outer Feed length", default=20)
+    self.param("wl2", self.TypeDouble, "Outer Feed Line thickness", default=9)
+    self.param("wg2", self.TypeDouble, "Outer Waveguide gap width", default=14)
+    self.param("rl", self.TypeDouble, "RampLength", default=20)
+    self.param("gp2", self.TypeDouble, "Outer ground width = x times ground-ground gap, x = ", default=3)
+    
+    #Feed mode
+    self.param("feedType", self.TypeString, "Feed mode", 
+                default="series", choices=(["Single", "single"],["Stepped","stepped"]))
+                
+    self.param("feedMode", self.TypeString, "Outer Feed Size", 
+                default="series", choices=(["Extended", "extended"],["Small","small"]))
+    
+    #text parameters
+    self.param("textLayer", self.TypeLayer, "Text Layer", default=pya.LayerInfo(1, 0))
+    #set custom string dialogue
+    self.param("textString", self.TypeString, "Custom label (auto generated if empty)", default="")
+    #set text size
+    self.param("textSize", self.TypeDouble, "Font Size", default=16)
+    #target impedance
+    self.param("textPadding", self.TypeDouble, "Font Padding", default=10)
+    #target impedance
+    
+    self.fingerPoints = []
+
+  def display_text_impl(self):
+    # Provide a descriptive text for the cell
+    sx = self.sx
+    
+    return "Interdigitated Capacitor (w=" + str(self.w) + ",l=" + str(self.l) + ", sx = " + str(self.sx) + ", sy = " + str(self.sy) + ", finger w = " + str(self.fingerWidth()) + ")"
+    
+  def fingerWidth(self):
+    if self.useFingerWidth:
+      return self.fw
+    else:
+      return (self.w-(self.nf-1)*self.sy)/(self.nf)
       
+  def widthY(self):
+    if self.useFingerWidth:
+      return self.nf*self.fw+(self.nf-1)*self.sy
+    else:
+      return self.w
+  
+  def widthX(self):
+    return self.sx+self.t*2+self.l
+      
+  def calcFingers(self, centre = (0,0)):
+    self.fingerPoints = []
+    cx, cy = centre
+    tx, ty = cx-self.widthX()/2, cy-self.widthY()/2 #translation vector to centre the capacitor on the centre input
+    w = self.widthY()#total vertical width
+    fw = self.fingerWidth() #finger width
+    l = self.l #finger length
+    sx, sy = self.sx, self.sy #finger spacing
+    n = int(self.nf) #number of fingers
+    t = self.t #connection thickness
+    
+    boxpointsL = (tx,ty,t+tx,w+ty)
+    boxpointsR = (self.widthX()-t+tx, ty, self.widthX()+tx, ty+w)
+    
+    feedL = (tx-self.wg,cy-self.wl/2, tx, cy+self.wl/2)
+    feedR = (tx+self.widthX(),cy-self.wl/2, tx+self.wg+self.widthX(), cy+self.wl/2)
+    
+    self.fingerPoints.append(boxpointsL)
+    self.fingerPoints.append(boxpointsR)
+    self.fingerPoints.append(feedL)
+    self.fingerPoints.append(feedR)
+    
+    verticalPoints = [i*(w-fw)/(n-1)+ty for i in range(n)] #horisontal points
+    print(verticalPoints)
+    hp = [t+tx, t+l+tx, t+sx+tx, t+sx+l+tx] #horisontal points
+    
+    print(ty)
+    
+    i = 1
+    for point in verticalPoints:
+      print(point)
+      if i % 2 == 1:
+        self.fingerPoints.append((hp[0],point,hp[1],point+fw))
+      else:
+        self.fingerPoints.append((hp[2],point,hp[3],point+fw))
+      i+=1
+      
+
+    
+    print(n)
+    
+  def drawFingers(self):
+    dbu = self.layout.dbu
+    
+    for corners in self.fingerPoints:
+      blx, bly, trx, ty = corners
+      
+      #print(self.fingerPoints)
+      self.cell.shapes(self.lp).insert(pya.Box(blx/dbu, bly/dbu, trx/dbu, ty/dbu))
+    
+  def produce_impl(self):
+    dbu = self.layout.dbu
+    
+    
+    self.spiralPoints = []
+    # This is the main part of the implementation: create the layout
+    #draw the feeds
+    outputs = drawFeeds(self, self.widthX(), self.widthY())
+    centrex = outputs["centrex"]
+    centrey = outputs["centrey"]
+    
+    #generate the spiral (see the function)
+    self.calcFingers((centrex, centrey))
+    self.drawFingers()
+    
+    textPos = (centrex, -(self.textPadding+self.textSize/2))
+
+    L = 10e-9
+    #print(L/1e-9)
+    #draw the device label
+    if self.textString == "":
+      drawText(self, "I CAP " + "{:.3f}".format(L/1e-9) + " nH ",self.textSize, centre_pos = textPos)
+    else:
+      drawText(self, self.textString, self.textSize, textPos)     
 
 class MyLib(pya.Library):
   """
@@ -645,10 +796,10 @@ class MyLib(pya.Library):
     # Create the PCell declarations
     # That would be the place to put in more PCells ...
     self.layout().register_pcell("CPW", CPW())
-    self.layout().register_pcell("MIM_Capacitor", MIM_Capacitor())
-    self.layout().register_pcell("Spiral_Inductor", Spiral_Inductor())
-    # Register us with the name "MyLib".
-    # If a library with that name already existed, it will be replaced then.
+    self.layout().register_pcell("MIM Capacitor", MIM_Capacitor())
+    self.layout().register_pcell("Spiral Inductor", Spiral_Inductor())
+    self.layout().register_pcell("Interdigitated Capacitor", Interdigitated_Capacitor())
+
     self.register("GaN_Lib")
 
 
