@@ -536,6 +536,8 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     #top left marker
     self.param("marker", self.TypeString, "Top left marker", default="")
     
+    self.wcalc = 0
+    self.scalc = 0
     self.height = 0
     self.spiralPoints = []
 
@@ -570,14 +572,20 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     din = self.din
     nt = self.nt
     w = self.w
+    self.wcalc = self.w #poor sofware design moment
+    self.scalc = self.s #this is kinda spaghet. I really should have programmed this to calculate dout given w and s.
     #print(w)
     if nt &gt; 1:
       s = (((dout-din)/2)-(nt)*w)/(nt-1)
+      self.scalc = s
     if nt == 1: #cases to override S are avoiding divide by zero and w as dependent variable 
       s = self.s
+      self.scalc = s
     elif self.s != 0: #calculating w and s (width and spacing of the spiral line)
       s = self.s #this was an annoying bug to fix fuck me (I had this line after calculating w)
       w = (((dout-din)/2)-(nt-1)*s)/nt
+      self.wcalc = w
+      self.scalc = s
       
       
       #self.w = w #will test how this behaves later #better leave it because w is good enough ;)
@@ -659,7 +667,7 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     #print(L/1e-9)
     #draw the device label
     if self.textString == "":
-      drawText(self, "Inductor " + "{:.3f}".format(L/1e-9) + " nH ",self.textSize, centre_pos = textPos)
+      drawText(self, "Inductor " + "{:.3f}".format(L/1e-9) + " nH " + " w=" + "{:.1f}".format(self.wcalc) + " s=" "{:.1f}".format(self.scalc),self.textSize, centre_pos = textPos)
     else:
       drawText(self, self.textString, self.textSize, textPos)
       
@@ -716,8 +724,9 @@ class Interdigitated_Capacitor(pya.PCellDeclarationHelper):
     #text parameters
     self.param("textLayer", self.TypeLayer, "Text Layer", default=pya.LayerInfo(1, 0))
     #set custom string dialogue
-    self.param("textString", self.TypeString, "Custom label (auto generated if empty)", default="")
+    self.param("textString", self.TypeString, "Custom label", default="")
     #set text size
+    self.param("textAppend", self.TypeBoolean, "Append custom label", default = True)
     self.param("textSize", self.TypeDouble, "Font Size", default=16)
     #target impedance
     self.param("textPadding", self.TypeDouble, "Font Padding", default=10)
@@ -825,8 +834,8 @@ class Interdigitated_Capacitor(pya.PCellDeclarationHelper):
     C = l/(self.widthY()*dbu*1e-3)*(er + 1)*((N-3)*A1 + A2)
     #print(L/1e-9)
     #draw the device label
-    if self.textString == "":
-      drawText(self, "I CAP " + "{:.3f}".format(C*1e15) + " fF ",self.textSize, centre_pos = textPos)
+    if self.textAppend:
+      drawText(self, "I_CAP " + "{:.0f}".format(C*1e15) + " fF, n=" + str(self.nf) + " S=" + "{:.0f}".format(self.sy)+ " fw=" + "{:.0f}".format(self.fingerWidth())+" um " + self.textString,self.textSize, centre_pos = textPos)
     else:
       drawText(self, self.textString, self.textSize, textPos) 
       
