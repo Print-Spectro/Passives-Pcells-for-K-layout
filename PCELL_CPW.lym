@@ -60,22 +60,27 @@ def drawCPW(self, wg, wl, length, pos, layer, custom_height = 0):
     
     return height, gw
     
-def drawText(self, label, text_size = 16, centre_pos = (0.0,0.0)):
+def drawText(self, label, text_size = 16, centre_pos = (0.0,0.0), centered = True):
     dbu = self.layout.dbu  #Database unit scale
                 
     # Create a subcell for the text PCell
     text_pcell = self.layout.create_cell("TEXT", "Basic", {
         "text": label, 
         "layer": self.textLayer, 
-        "mag": text_size  # Scale text size to database units
+        "mag": text_size# Scale text size to database units
     })
     #calculating translation to centre text on centre_pos
     width = text_pcell.bbox().width()
     height = text_pcell.bbox().height()
     
-    centreVector = [-width/2+centre_pos[0]/dbu,-height/2+centre_pos[1]/dbu]
+    if centered:
+      centreVector = [-width/2+centre_pos[0]/dbu,-height/2+centre_pos[1]/dbu]
+      x, y = centreVector[0], centreVector[1]
+    else:
+      x, y = centre_pos
+      
     # Insert the text PCell into the layout at a position (x=0, y=0)
-    t = pya.Trans(pya.Trans.R0, centreVector[0], centreVector[1])  # No rotation, place at (0,0)
+    t = pya.Trans(pya.Trans.R0, x, y)  # No rotation, place at (0,0)
     self.cell.insert(pya.CellInstArray(text_pcell.cell_index(), t))
     
 def drawOuter(self, innerW, innerH, extended = True):
@@ -170,7 +175,7 @@ def drawOuter(self, innerW, innerH, extended = True):
       #points object with database units scaling
       ramp_points = [pya.Point(x/dbu,y/dbu) for x,y in i]
       self.cell.shapes(self.lp).insert(pya.Polygon(ramp_points))
-    
+    self.height = outerH
     return inner_translation[0], inner_translation[1]
     
 def drawFeeds(self, lx, ly, translate = (0,0)):
@@ -186,7 +191,7 @@ def drawFeeds(self, lx, ly, translate = (0,0)):
     innerH = (self.wg*2)*(self.gp*2+1)+self.wl*(self.gp*2+1)
     gg = 2*self.wg + self.wl
     gh = self.gp*gg
-    
+    self.height = innerH
     #draw outer feeds and translate inner feeds
     if self.feedType == "stepped":
       tx, ty = drawOuter(self, innerW, innerH)
@@ -252,6 +257,11 @@ class CPW(pya.PCellDeclarationHelper):
     
     self.param("feedMode", self.TypeString, "Outer Feed Size", 
                 default="series", choices=(["Extended", "extended"],["Small","small"]))
+    
+    #top left marker
+    self.param("marker", self.TypeString, "Top left marker", default="")
+                
+    self.height =  0
 
   def display_text_impl(self):
     # Provide a descriptive text for the cell
@@ -282,7 +292,8 @@ class CPW(pya.PCellDeclarationHelper):
     
     if mode == "off" or self.feedMode == "Off":
       length = self.ll
-      drawCPW(self, self.wg, self.wl, length, [0,0], self.lp)
+      H, g = drawCPW(self, self.wg, self.wl, length, [0,0], self.lp)
+      self.height = H
       x, y = 0,0
     elif mode == "inset":
       length = self.ll-2*self.lf2
@@ -307,6 +318,9 @@ class CPW(pya.PCellDeclarationHelper):
         drawText(self, "CPW " + str(self.impedance) + " Ohm " + "{:.0f}".format(self.ll) + " um",self.textSize, centre_pos = textPos)
       else:
         drawText(self, self.textString, self.textSize, textPos)
+        
+    #draw top left label
+    drawText(self, self.marker, self.textSize, centre_pos = (0,self.height/dbu+self.textPadding/dbu), centered = False) 
 
 class MIM_Capacitor(pya.PCellDeclarationHelper):
   """
@@ -375,8 +389,9 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
     self.param("textSize", self.TypeDouble, "Font Size", default=16)
     #target impedance
     self.param("textPadding", self.TypeDouble, "Font Padding", default=10)
-    #target impedance
-
+    #top left marker
+    self.param("marker", self.TypeString, "Top left marker", default="")
+    self.height = 0
 
   def display_text_impl(self):
     # Provide a descriptive text for the cell
@@ -452,6 +467,9 @@ class MIM_Capacitor(pya.PCellDeclarationHelper):
       drawText(self, "MIM CAP " + "{:.3f}".format(C) + " pF ",self.textSize, centre_pos = textPos)
     else:
       drawText(self, self.textString, self.textSize, textPos)
+      
+    #draw top left label
+    drawText(self, self.marker, self.textSize, centre_pos = (0,self.height/dbu+self.textPadding/dbu), centered = False) 
 
 class Spiral_Inductor(pya.PCellDeclarationHelper):
   """
@@ -480,8 +498,9 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.param("pb", self.TypeDouble, "Bottom plate padding", default=0)
     
     #SiN layer modes
-    self.param("dielectric", self.TypeString, "Dielectric Mode", 
-            default="series", choices=(["Patch", "patch"],["Via","via"]))
+    #calculation mode
+    self.param("useVias", self.TypeBoolean, "Use vias", default=False)
+    self.param("vw", self.TypeDouble, "Via Width", default=2)
     
     #parameters for the feeds
     self.param("lf", self.TypeDouble, "Feed length", default=20)
@@ -512,10 +531,12 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.param("textString", self.TypeString, "Custom label (auto generated if empty)", default="")
     #set text size
     self.param("textSize", self.TypeDouble, "Font Size", default=16)
-    #target impedance
-    self.param("textPadding", self.TypeDouble, "Font Padding", default=10)
-    #target impedance
     
+    self.param("textPadding", self.TypeDouble, "Font Padding", default=10)
+    #top left marker
+    self.param("marker", self.TypeString, "Top left marker", default="")
+    
+    self.height = 0
     self.spiralPoints = []
 
 
@@ -583,10 +604,23 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
     self.cell.shapes(self.lb).insert(pya.Path(feed_points, (w+self.pb*2)/dbu))
     
     #adding the dielectric using a path
-    dielectric_start = (cx + dout/2)-(dout-din)/2-self.pd
-    dielectric_end = (cx + dout/2)+self.pd
-    dielectric_points = [pya.Point(dielectric_start/dbu, cy/dbu), pya.Point(dielectric_end/dbu, cy/dbu)]
-    self.cell.shapes(self.ld).insert(pya.Path(dielectric_points, (w+self.pd*2)/dbu))
+    if self.useVias:
+      #adding via using box and boolean operation
+      SiNBox = [i/dbu for i in (cx-self.dout/2-self.pd,cy-self.dout/2-self.pd,cx+self.dout/2+self.pd,cy+self.dout/2+self.pd)]
+      vx, vy = self.spiralPoints[-1][0] - self.vw/2, cy-self.vw/2
+      ViaHole = [i/dbu for i in (vx,vy,vx+self.vw,vy+self.vw)]
+      
+      outer_square = pya.Box(SiNBox)
+      inner_square = pya.Box(ViaHole)
+      
+      self.cell.shapes(self.ld).insert(pya.Region(outer_square)-pya.Region(inner_square))
+      
+    else:
+      #adding the dielectric using a path
+      dielectric_start = (cx + dout/2)-(dout-din)/2-self.pd
+      dielectric_end = (cx + dout/2)+self.pd
+      dielectric_points = [pya.Point(dielectric_start/dbu, cy/dbu), pya.Point(dielectric_end/dbu, cy/dbu)]
+      self.cell.shapes(self.ld).insert(pya.Path(dielectric_points, (w+self.pd*2)/dbu))
     
     #moving end of spiral to overlap properly with the feed
     self.spiralPoints[-1][1] = cy+w/2
@@ -601,7 +635,7 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
   def produce_impl(self):
     dbu = self.layout.dbu
     
-    self.spiralPoints = []
+    self.spiralPoints = [] #very important to prevent spaghettification
     # This is the main part of the implementation: create the layout
     #draw the feeds
     outputs = drawFeeds(self, self.dout, self.dout)
@@ -628,6 +662,9 @@ class Spiral_Inductor(pya.PCellDeclarationHelper):
       drawText(self, "Inductor " + "{:.3f}".format(L/1e-9) + " nH ",self.textSize, centre_pos = textPos)
     else:
       drawText(self, self.textString, self.textSize, textPos)
+      
+        #draw top left label
+    drawText(self, self.marker, self.textSize, centre_pos = (0,self.height/dbu+self.textPadding/dbu), centered = False)  
 
 class Interdigitated_Capacitor(pya.PCellDeclarationHelper):
   """
@@ -684,15 +721,17 @@ class Interdigitated_Capacitor(pya.PCellDeclarationHelper):
     self.param("textSize", self.TypeDouble, "Font Size", default=16)
     #target impedance
     self.param("textPadding", self.TypeDouble, "Font Padding", default=10)
-    #target impedance
+    #top left marker
+    self.param("marker", self.TypeString, "Top left marker", default="")
     
+    self.height = 0
     self.fingerPoints = []
 
   def display_text_impl(self):
     # Provide a descriptive text for the cell
     sx = self.sx
     
-    return "Interdigitated Capacitor (w=" + str(self.w) + ",l=" + str(self.l) + ", sx = " + str(self.sx) + ", sy = " + str(self.sy) + ", finger w = " + str(self.fingerWidth()) + ")"
+    return "Interdigitated Capacitor (w=" + str(self.widthY()) + ",l=" + str(self.l) + ", sx = " + str(self.sx) + ", sy = " + str(self.sy) + ", finger w = " + str(self.fingerWidth()) + ")"
     
   def fingerWidth(self):
     if self.useFingerWidth:
@@ -732,14 +771,14 @@ class Interdigitated_Capacitor(pya.PCellDeclarationHelper):
     self.fingerPoints.append(feedR)
     
     verticalPoints = [i*(w-fw)/(n-1)+ty for i in range(n)] #horisontal points
-    print(verticalPoints)
+    #print(verticalPoints)
     hp = [t+tx, t+l+tx, t+sx+tx, t+sx+l+tx] #horisontal points
     
-    print(ty)
+    #print(ty)
     
     i = 1
     for point in verticalPoints:
-      print(point)
+      #print(point)
       if i % 2 == 1:
         self.fingerPoints.append((hp[0],point,hp[1],point+fw))
       else:
@@ -748,7 +787,7 @@ class Interdigitated_Capacitor(pya.PCellDeclarationHelper):
       
 
     
-    print(n)
+    #print(n)
     
   def drawFingers(self):
     dbu = self.layout.dbu
@@ -777,19 +816,22 @@ class Interdigitated_Capacitor(pya.PCellDeclarationHelper):
     textPos = (centrex, -(self.textPadding+self.textSize/2))
 
     er = 11.9 
-    w = self.w*dbu*1e-3 #w in cm
+    w = self.widthY()*dbu*1e-3 #w in cm
     l = self.l*dbu*1e-3 #l in cm
     N = self.nf #number of fingers
-    A1 = 8.85e-12*w
-    A2 = 9.92e-12*w
+    A1 = 8.85e-12*self.widthY()*dbu*1e-3
+    A2 = 9.92e-12*self.widthY()*dbu*1e-3
 
-    C = l/w*(er + 1)*((N-3)*A1 + A2)
+    C = l/(self.widthY()*dbu*1e-3)*(er + 1)*((N-3)*A1 + A2)
     #print(L/1e-9)
     #draw the device label
     if self.textString == "":
       drawText(self, "I CAP " + "{:.3f}".format(C*1e15) + " fF ",self.textSize, centre_pos = textPos)
     else:
-      drawText(self, self.textString, self.textSize, textPos)     
+      drawText(self, self.textString, self.textSize, textPos) 
+      
+    #draw top left label
+    drawText(self, self.marker, self.textSize, centre_pos = (0,self.height/dbu+self.textPadding/dbu), centered = False)    
 
 class MyLib(pya.Library):
   """
